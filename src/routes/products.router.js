@@ -1,6 +1,7 @@
-const express = require('express');
-const router = express.Router();
-const UserManager = require('../fileManager/UserManager');
+import { Router } from 'express';
+import UserManager from '../fileManager/UserManager.js';
+
+const router = Router();
 const productManager = new UserManager('products.json');
 
 // Obtener todos los productos
@@ -44,25 +45,30 @@ router.get('/:id', async (req, res) => {
 // Crear un nuevo producto
 router.post('/', async (req, res) => {
   try {
-    const { nombre, precio, stock } = req.body;
+    const { title, description, price, code, stock } = req.body;
     
-    if (!nombre || !precio) {
+    if (!title || !description || !price || !code || stock === undefined) {
       return res.status(400).json({ 
         status: 'error', 
-        mensaje: 'Nombre y precio son requeridos' 
+        mensaje: 'Todos los campos son requeridos' 
       });
     }
     
     const productos = await productManager.readFile();
     const nuevoProducto = {
       id: productos.length > 0 ? Math.max(...productos.map(p => p.id)) + 1 : 1,
-      nombre,
-      precio,
-      stock: stock || 0
+      title,
+      description,
+      price,
+      code,
+      stock
     };
     
     productos.push(nuevoProducto);
     await productManager.writeFile(productos);
+    
+    // Actualizar la lista global de productos
+    global.products = productos;
     
     res.status(201).json({ 
       status: 'success', 
@@ -101,6 +107,9 @@ router.put('/:id', async (req, res) => {
     productos[indice] = productoActualizado;
     await productManager.writeFile(productos);
     
+    // Actualizar la lista global de productos
+    global.products = productos;
+    
     res.json({ 
       status: 'success', 
       data: productoActualizado,
@@ -132,6 +141,9 @@ router.delete('/:id', async (req, res) => {
     productos.splice(indice, 1);
     await productManager.writeFile(productos);
     
+    // Actualizar la lista global de productos
+    global.products = productos;
+    
     res.json({ 
       status: 'success', 
       mensaje: 'Producto eliminado exitosamente' 
@@ -145,4 +157,4 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

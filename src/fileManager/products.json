@@ -1,68 +1,90 @@
 [
   {
     "id": 2,
-    "nombre": "Smartphone",
-    "precio": 455499,
+    "title": "Smartphone",
+    "description": "Teléfono inteligente de última generación",
+    "price": 455499,
+    "code": "SP002",
     "stock": 15
   },
   {
     "id": 3,
-    "nombre": "Auriculares",
-    "precio": 18899,
+    "title": "Auriculares",
+    "description": "Auriculares con cancelación de ruido",
+    "price": 18899,
+    "code": "AUR003",
     "stock": 20
   },
   {
     "id": 4,
-    "nombre": "Producto de prueba",
-    "precio": 200000,
+    "title": "Producto de prueba",
+    "description": "Producto para testing",
+    "price": 200000,
+    "code": "TEST004",
     "stock": 30
   },
   {
     "id": 5,
-    "nombre": "Smartwatch",
-    "precio": 120000,
+    "title": "Smartwatch",
+    "description": "Reloj inteligente con monitor cardíaco",
+    "price": 120000,
+    "code": "SW005",
     "stock": 30
   },
   {
     "id": 6,
-    "nombre": "Cargador USB-C",
-    "precio": 32000,
+    "title": "Cargador USB-C",
+    "description": "Cargador rápido USB tipo C",
+    "price": 32000,
+    "code": "CHR006",
     "stock": 50
   },
   {
     "id": 7,
-    "nombre": "Laptop Gaming",
-    "precio": 1200000,
+    "title": "Laptop Gaming",
+    "description": "Laptop para gaming de alto rendimiento",
+    "price": 1200000,
+    "code": "LPG007",
     "stock": 8
   },
   {
     "id": 8,
-    "nombre": "Silla Ergonómica",
-    "precio": 150000,
+    "title": "Silla Ergonómica",
+    "description": "Silla de oficina con diseño ergonómico",
+    "price": 150000,
+    "code": "CHR008",
     "stock": 5
   },
   {
     "id": 9,
-    "nombre": "Auriculares Inalámbricos",
-    "precio": 95300,
+    "title": "Auriculares Inalámbricos",
+    "description": "Auriculares bluetooth con estuche de carga",
+    "price": 95300,
+    "code": "AUR009",
     "stock": 25
   },
   {
     "id": 10,
-    "nombre": "Monitor 24 pulgadas",
-    "precio": 140000,
+    "title": "Monitor 24 pulgadas",
+    "description": "Monitor LED Full HD de 24 pulgadas",
+    "price": 140000,
+    "code": "MON010",
     "stock": 10
   },
   {
     "id": 11,
-    "nombre": "Mouse Gamer",
-    "precio": 85000,
+    "title": "Mouse Gamer",
+    "description": "Mouse gaming con RGB y botones programables",
+    "price": 85000,
+    "code": "MOU011",
     "stock": 15
   },
   {
     "id": 12,
-    "nombre": "Teclado Mecánico",
-    "precio": 45000,
+    "title": "Teclado Mecánico",
+    "description": "Teclado mecánico RGB con switches blue",
+    "price": 45000,
+    "code": "KEY012",
     "stock": 20
   }
 ]

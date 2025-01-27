@@ -1,5 +1,9 @@
-const fs = require('fs').promises;
-const path = require('path');
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 class UserManager {
   constructor(filename) {
@@ -8,14 +12,14 @@ class UserManager {
 
   async readFile() {
     try {
-      const data = await fs.readFile(this.path, 'utf8');
+      const data = await fs.readFile(this.path, 'utf-8');
       return JSON.parse(data);
     } catch (error) {
       if (error.code === 'ENOENT') {
         // Si el archivo no existe, retornamos un array vacío
         return [];
       }
-      throw new Error(`Error al leer el archivo: ${error.message}`);
+      throw error;
     }
   }
 
@@ -23,9 +27,9 @@ class UserManager {
     try {
       await fs.writeFile(this.path, JSON.stringify(data, null, 2));
     } catch (error) {
-      throw new Error(`Error al escribir el archivo: ${error.message}`);
+      throw error;
     }
   }
 }
 
-module.exports = UserManager;
+export default UserManager;
