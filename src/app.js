@@ -5,6 +5,7 @@ import handlebars from 'express-handlebars';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import productsRouter from './routes/products.router.js';
+import viewsRouter from './routes/views.router.js';
 import UserManager from './fileManager/UserManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -26,10 +27,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Cargar productos iniciales
-let products = [];
 const loadProducts = async () => {
     try {
-        products = await productManager.readFile();
+        const products = await productManager.readFile();
         global.products = products;
         console.log('Productos cargados inicialmente:', products);
     } catch (error) {
@@ -39,21 +39,7 @@ const loadProducts = async () => {
 loadProducts();
 
 // Rutas
-app.get('/products', async (req, res) => {
-    try {
-        const productos = await productManager.readFile();
-        console.log('Productos enviados a la vista products:', productos);
-        res.render('products', { products: productos });
-    } catch (error) {
-        console.error('Error al cargar productos para la vista:', error);
-        res.status(500).render('error', { error: 'Error al cargar productos' });
-    }
-});
-
-app.get('/realtimeproducts', (req, res) => {
-    res.render('realTimeProducts');
-});
-
+app.use('/', viewsRouter);
 app.use('/api/products', productsRouter);
 
 // WebSocket
