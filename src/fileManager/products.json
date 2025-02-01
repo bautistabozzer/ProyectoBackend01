@@ -1,13 +1,5 @@
 [
   {
-    "id": 2,
-    "title": "Smartphone",
-    "description": "Teléfono inteligente de última generación",
-    "price": 455499,
-    "code": "SP002",
-    "stock": 15
-  },
-  {
     "id": 3,
     "title": "Auriculares",
     "description": "Auriculares con cancelación de ruido",

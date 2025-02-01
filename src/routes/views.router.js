@@ -4,6 +4,11 @@ import UserManager from '../fileManager/UserManager.js';
 const router = Router();
 const productManager = new UserManager('products.json');
 
+// Vista raíz
+router.get('/', (req, res) => {
+    res.render('index');
+});
+
 // Vista de productos
 router.get('/products', async (req, res) => {
     try {
