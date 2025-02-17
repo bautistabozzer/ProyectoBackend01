@@ -1,0 +1,281 @@
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Mi Carrito</h5>
+                {{#if cart.products.length}}
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Precio</th>
+                                <th>Cantidad</th>
+                                <th>Subtotal</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{#each cart.products}}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        {{#if product.thumbnails.[0]}}
+                                        <img src="{{product.thumbnails.[0]}}" alt="{{product.title}}" class="me-2" style="width: 50px; height: 50px; object-fit: cover;">
+                                        {{else}}
+                                        <div class="bg-secondary text-white d-flex align-items-center justify-content-center me-2" style="width: 50px; height: 50px;">
+                                            <i class="bi bi-image"></i>
+                                        </div>
+                                        {{/if}}
+                                        <div>
+                                            <h6 class="mb-0">{{product.title}}</h6>
+                                            <small class="text-muted">{{product.code}}</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {{#if product.onSale}}
+                                    <span class="text-decoration-line-through text-muted">${{product.price}}</span>
+                                    <span class="text-danger">${{product.finalPrice}}</span>
+                                    {{else}}
+                                    ${{product.price}}
+                                    {{/if}}
+                                </td>
+                                <td>
+                                    <div class="input-group" style="width: 120px;">
+                                        <button class="btn btn-outline-secondary decrease-quantity" type="button" data-product-id="{{product._id}}">-</button>
+                                        <input type="number" class="form-control text-center quantity-input" value="{{quantity}}" min="1" data-product-id="{{product._id}}">
+                                        <button class="btn btn-outline-secondary increase-quantity" type="button" data-product-id="{{product._id}}">+</button>
+                                    </div>
+                                </td>
+                                <td>${{multiply product.finalPrice quantity}}</td>
+                                <td>
+                                    <button class="btn btn-danger btn-sm remove-item" data-product-id="{{product._id}}">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {{/each}}
+                        </tbody>
+                    </table>
+                </div>
+                {{else}}
+                <div class="text-center py-4">
+                    <i class="bi bi-cart-x fs-1 text-muted"></i>
+                    <p class="mt-2">Tu carrito está vacío</p>
+                    <a href="/" class="btn btn-primary">Ir a comprar</a>
+                </div>
+                {{/if}}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        {{#if cart.products.length}}
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Resumen</h5>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Subtotal:</span>
+                    <span>${{subtotal}}</span>
+                </div>
+                {{#if savings}}
+                <div class="d-flex justify-content-between mb-2 text-success">
+                    <span>Ahorro:</span>
+                    <span>-${{savings}}</span>
+                </div>
+                {{/if}}
+                <hr>
+                <div class="d-flex justify-content-between mb-3">
+                    <strong>Total:</strong>
+                    <strong>${{total}}</strong>
+                </div>
+                <button class="btn btn-primary w-100" id="checkout-btn">
+                    Proceder al pago
+                </button>
+                <button class="btn btn-outline-danger w-100 mt-2" id="clear-cart-btn">
+                    Vaciar carrito
+                </button>
+            </div>
+        </div>
+        {{/if}}
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const socket = io();
+        
+        // Funciones auxiliares
+        const updateQuantity = async (productId, newQuantity) => {
+            try {
+                const response = await fetch(`/api/carts/{{cart._id}}/products/${productId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ quantity: newQuantity })
+                });
+
+                if (!response.ok) throw new Error('Error al actualizar cantidad');
+                
+                // Recargar la página para mostrar los cambios
+                window.location.reload();
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        };
+
+        // Event Listeners
+        document.querySelectorAll('.decrease-quantity').forEach(button => {
+            button.addEventListener('click', () => {
+                const productId = button.dataset.productId;
+                const input = document.querySelector(`.quantity-input[data-product-id="${productId}"]`);
+                const newQuantity = parseInt(input.value) - 1;
+                if (newQuantity >= 1) {
+                    updateQuantity(productId, newQuantity);
+                }
+            });
+        });
+
+        document.querySelectorAll('.increase-quantity').forEach(button => {
+            button.addEventListener('click', () => {
+                const productId = button.dataset.productId;
+                const input = document.querySelector(`.quantity-input[data-product-id="${productId}"]`);
+                const newQuantity = parseInt(input.value) + 1;
+                updateQuantity(productId, newQuantity);
+            });
+        });
+
+        document.querySelectorAll('.quantity-input').forEach(input => {
+            input.addEventListener('change', () => {
+                const productId = input.dataset.productId;
+                const newQuantity = parseInt(input.value);
+                if (newQuantity >= 1) {
+                    updateQuantity(productId, newQuantity);
+                } else {
+                    input.value = 1;
+                }
+            });
+        });
+
+        document.querySelectorAll('.remove-item').forEach(button => {
+            button.addEventListener('click', async () => {
+                const productId = button.dataset.productId;
+                try {
+                    const response = await fetch(`/api/carts/{{cart._id}}/products/${productId}`, {
+                        method: 'DELETE'
+                    });
+
+                    if (!response.ok) throw new Error('Error al eliminar producto');
+                    
+                    window.location.reload();
+                } catch (error) {
+                    console.error('Error:', error);
+                }
+            });
+        });
+
+        document.getElementById('clear-cart-btn')?.addEventListener('click', async () => {
+            if (confirm('¿Estás seguro de que deseas vaciar el carrito?')) {
+                try {
+                    const response = await fetch(`/api/carts/{{cart._id}}`, {
+                        method: 'DELETE'
+                    });
+
+                    if (!response.ok) throw new Error('Error al vaciar carrito');
+                    
+                    window.location.reload();
+                } catch (error) {
+                    console.error('Error:', error);
+                }
+            }
+        });
+
+        // Escuchar actualizaciones en tiempo real
+        socket.on('cartUpdated', (updatedCart) => {
+            if (updatedCart._id === '{{cart._id}}') {
+                window.location.reload();
+            }
+        });
+
+        // Manejar el checkout
+        document.getElementById('checkout-btn')?.addEventListener('click', async () => {
+            try {
+                const response = await fetch(`/api/carts/{{cart._id}}/checkout`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Crear el elemento del modal
+                    const modalDiv = document.createElement('div');
+                    modalDiv.className = 'modal fade';
+                    modalDiv.innerHTML = `
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header bg-success text-white">
+                                    <h5 class="modal-title">¡Compra Exitosa!</h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body text-center">
+                                    <i class="bi bi-check-circle text-success display-1"></i>
+                                    <p class="mt-3">Tu compra ha sido procesada exitosamente.</p>
+                                    <p class="text-muted">Recibirás un correo con los detalles de tu pedido.</p>
+                                </div>
+                                <div class="modal-footer">
+                                    <a href="/" class="btn btn-primary">Seguir Comprando</a>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(modalDiv);
+                    
+                    // Crear y mostrar el modal
+                    const successModal = new bootstrap.Modal(modalDiv);
+                    successModal.show();
+
+                    // Actualizar el contador del carrito a 0
+                    document.getElementById('cart-count').textContent = '0';
+
+                    // Redirigir al nuevo carrito vacío después de 2 segundos
+                    setTimeout(() => {
+                        window.location.href = '/cart';
+                    }, 2000);
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                // Crear el elemento del modal de error
+                const modalDiv = document.createElement('div');
+                modalDiv.className = 'modal fade';
+                modalDiv.innerHTML = `
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header bg-danger text-white">
+                                <h5 class="modal-title">Error</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body text-center">
+                                <i class="bi bi-exclamation-circle text-danger display-1"></i>
+                                <p class="mt-3">No se pudo procesar tu compra.</p>
+                                <p class="text-muted">${error.message}</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modalDiv);
+                
+                // Crear y mostrar el modal de error
+                const errorModal = new bootstrap.Modal(modalDiv);
+                errorModal.show();
+            }
+        });
+    });
+</script> 

@@ -1,0 +1,307 @@
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Agregar Producto</h5>
+                <form id="product-form">
+                    <div class="mb-3">
+                        <label class="form-label">Título</label>
+                        <input type="text" class="form-control" name="title" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descripción</label>
+                        <textarea class="form-control" name="description" rows="3" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Código</label>
+                        <input type="text" class="form-control" name="code" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Precio</label>
+                        <input type="number" class="form-control" name="price" min="0" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Stock</label>
+                        <input type="number" class="form-control" name="stock" min="0" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Categoría</label>
+                        <input type="text" class="form-control" name="category" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Imágenes (URLs separadas por comas)</label>
+                        <input type="text" class="form-control" name="thumbnails">
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" name="status" checked>
+                        <label class="form-check-label">Activo</label>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" name="onSale">
+                        <label class="form-check-label">En oferta</label>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Agregar Producto</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Gestión de Productos</h5>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Código</th>
+                                <th>Precio</th>
+                                <th>Stock</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{#each products.docs}}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        {{#if thumbnails.[0]}}
+                                        <img src="{{thumbnails.[0]}}" alt="{{title}}" class="me-2" style="width: 40px; height: 40px; object-fit: cover;">
+                                        {{else}}
+                                        <div class="bg-secondary text-white d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px;">
+                                            <i class="bi bi-image"></i>
+                                        </div>
+                                        {{/if}}
+                                        <div>
+                                            <h6 class="mb-0">{{title}}</h6>
+                                            <small class="text-muted">{{category}}</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>{{code}}</td>
+                                <td>
+                                    {{#if onSale}}
+                                    <span class="text-decoration-line-through text-muted">${{price}}</span>
+                                    <span class="text-danger">${{finalPrice}}</span>
+                                    {{else}}
+                                    ${{price}}
+                                    {{/if}}
+                                </td>
+                                <td>{{stock}}</td>
+                                <td>
+                                    <span class="badge {{#if status}}bg-success{{else}}bg-danger{{/if}}">
+                                        {{#if status}}Activo{{else}}Inactivo{{/if}}
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-primary btn-sm edit-product" data-product="{{toJSON this}}">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-danger btn-sm delete-product" data-product-id="{{_id}}">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {{/each}}
+                        </tbody>
+                    </table>
+                </div>
+
+                {{#if products.totalPages}}
+                <nav class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        {{#if products.hasPrevPage}}
+                        <li class="page-item">
+                            <a class="page-link" href="/admin?page={{products.prevPage}}">Anterior</a>
+                        </li>
+                        {{/if}}
+                        
+                        {{#each (range 1 products.totalPages)}}
+                        <li class="page-item {{#if (eq this ../products.page)}}active{{/if}}">
+                            <a class="page-link" href="/admin?page={{this}}">{{this}}</a>
+                        </li>
+                        {{/each}}
+
+                        {{#if products.hasNextPage}}
+                        <li class="page-item">
+                            <a class="page-link" href="/admin?page={{products.nextPage}}">Siguiente</a>
+                        </li>
+                        {{/if}}
+                    </ul>
+                </nav>
+                {{/if}}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edición -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Producto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-form">
+                    <input type="hidden" name="productId">
+                    <div class="mb-3">
+                        <label class="form-label">Título</label>
+                        <input type="text" class="form-control" name="title" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descripción</label>
+                        <textarea class="form-control" name="description" rows="3" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Código</label>
+                        <input type="text" class="form-control" name="code" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Precio</label>
+                        <input type="number" class="form-control" name="price" min="0" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Stock</label>
+                        <input type="number" class="form-control" name="stock" min="0" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Categoría</label>
+                        <input type="text" class="form-control" name="category" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Imágenes (URLs separadas por comas)</label>
+                        <input type="text" class="form-control" name="thumbnails">
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" name="status">
+                        <label class="form-check-label">Activo</label>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" name="onSale">
+                        <label class="form-check-label">En oferta</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="save-edit">Guardar Cambios</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const socket = io();
+        const productForm = document.getElementById('product-form');
+        const editForm = document.getElementById('edit-form');
+        const editModal = new bootstrap.Modal(document.getElementById('editModal'));
+
+        // Funciones auxiliares
+        const formatThumbnails = (thumbnailsString) => {
+            if (!thumbnailsString) return [];
+            return thumbnailsString.split(',').map(url => url.trim()).filter(url => url);
+        };
+
+        const getFormData = (form) => {
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData);
+            data.status = formData.has('status');
+            data.onSale = formData.has('onSale');
+            data.thumbnails = formatThumbnails(data.thumbnails);
+            data.price = parseFloat(data.price);
+            data.stock = parseInt(data.stock);
+            return data;
+        };
+
+        // Event Listeners
+        productForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                const response = await fetch('/api/products', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(getFormData(productForm))
+                });
+
+                if (!response.ok) throw new Error('Error al crear producto');
+                
+                productForm.reset();
+                window.location.reload();
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+
+        document.querySelectorAll('.edit-product').forEach(button => {
+            button.addEventListener('click', () => {
+                const product = JSON.parse(button.dataset.product);
+                const form = document.getElementById('edit-form');
+                
+                form.querySelector('[name="productId"]').value = product._id;
+                form.querySelector('[name="title"]').value = product.title;
+                form.querySelector('[name="description"]').value = product.description;
+                form.querySelector('[name="code"]').value = product.code;
+                form.querySelector('[name="price"]').value = product.price;
+                form.querySelector('[name="stock"]').value = product.stock;
+                form.querySelector('[name="category"]').value = product.category;
+                form.querySelector('[name="thumbnails"]').value = product.thumbnails.join(', ');
+                form.querySelector('[name="status"]').checked = product.status;
+                form.querySelector('[name="onSale"]').checked = product.onSale;
+
+                editModal.show();
+            });
+        });
+
+        document.getElementById('save-edit').addEventListener('click', async () => {
+            try {
+                const data = getFormData(editForm);
+                const productId = editForm.querySelector('[name="productId"]').value;
+
+                const response = await fetch(`/api/products/${productId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) throw new Error('Error al actualizar producto');
+                
+                editModal.hide();
+                window.location.reload();
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+
+        document.querySelectorAll('.delete-product').forEach(button => {
+            button.addEventListener('click', async () => {
+                if (confirm('¿Estás seguro de que deseas eliminar este producto?')) {
+                    const productId = button.dataset.productId;
+                    try {
+                        const response = await fetch(`/api/products/${productId}`, {
+                            method: 'DELETE'
+                        });
+
+                        if (!response.ok) throw new Error('Error al eliminar producto');
+                        
+                        window.location.reload();
+                    } catch (error) {
+                        console.error('Error:', error);
+                    }
+                }
+            });
+        });
+
+        // Escuchar actualizaciones en tiempo real
+        socket.on('productCreated', () => window.location.reload());
+        socket.on('productUpdated', () => window.location.reload());
+        socket.on('productDeleted', () => window.location.reload());
+    });
+</script> 

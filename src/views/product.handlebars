@@ -1,0 +1,165 @@
+<div class="row">
+    <div class="col-md-6">
+        {{#if product.thumbnails.length}}
+        <div id="productCarousel" class="carousel slide" data-bs-ride="carousel">
+            <div class="carousel-inner">
+                {{#each product.thumbnails}}
+                <div class="carousel-item {{#if @first}}active{{/if}}">
+                    <img src="{{this}}" class="d-block w-100" alt="{{../product.title}}">
+                </div>
+                {{/each}}
+            </div>
+            {{#if (gt product.thumbnails.length 1)}}
+            <button class="carousel-control-prev" type="button" data-bs-target="#productCarousel" data-bs-slide="prev">
+                <span class="carousel-control-prev-icon"></span>
+            </button>
+            <button class="carousel-control-next" type="button" data-bs-target="#productCarousel" data-bs-slide="next">
+                <span class="carousel-control-next-icon"></span>
+            </button>
+            {{/if}}
+        </div>
+        {{else}}
+        <div class="bg-secondary text-white d-flex align-items-center justify-content-center" style="height: 400px;">
+            <i class="bi bi-image fs-1"></i>
+        </div>
+        {{/if}}
+    </div>
+    <div class="col-md-6">
+        <h1 class="mb-3">{{product.title}}</h1>
+        <p class="text-muted mb-4">Código: {{product.code}}</p>
+        
+        <div class="mb-4">
+            {{#if product.onSale}}
+            <div class="mb-2">
+                <span class="text-decoration-line-through text-muted fs-4">${{product.price}}</span>
+                <span class="badge bg-danger ms-2">-10%</span>
+            </div>
+            <div class="fs-2 text-danger">${{product.finalPrice}}</div>
+            {{else}}
+            <div class="fs-2">${{product.price}}</div>
+            {{/if}}
+        </div>
+
+        <div class="mb-4">
+            <h5>Descripción</h5>
+            <p>{{product.description}}</p>
+        </div>
+
+        <div class="mb-4">
+            <div class="d-flex align-items-center mb-2">
+                <h5 class="mb-0 me-2">Stock</h5>
+                {{#if product.status}}
+                    {{#if (gt product.stock 0)}}
+                    <span class="badge bg-success">Disponible</span>
+                    {{else}}
+                    <span class="badge bg-danger">Agotado</span>
+                    {{/if}}
+                {{else}}
+                <span class="badge bg-secondary">Inactivo</span>
+                {{/if}}
+            </div>
+            <p class="mb-0">{{product.stock}} unidades disponibles</p>
+        </div>
+
+        <div class="mb-4">
+            <h5>Categoría</h5>
+            <span class="badge bg-primary">{{product.category}}</span>
+        </div>
+
+        {{#if product.status}}
+            {{#if (gt product.stock 0)}}
+            <div class="d-flex gap-2">
+                <div class="input-group" style="width: 150px;">
+                    <button class="btn btn-outline-secondary decrease-quantity" type="button">-</button>
+                    <input type="number" class="form-control text-center" id="quantity" value="1" min="1" max="{{product.stock}}">
+                    <button class="btn btn-outline-secondary increase-quantity" type="button">+</button>
+                </div>
+                <button class="btn btn-primary flex-grow-1" id="add-to-cart">
+                    <i class="bi bi-cart-plus"></i> Agregar al Carrito
+                </button>
+            </div>
+            {{else}}
+            <button class="btn btn-secondary w-100" disabled>
+                Producto Agotado
+            </button>
+            {{/if}}
+        {{else}}
+        <button class="btn btn-secondary w-100" disabled>
+            Producto No Disponible
+        </button>
+        {{/if}}
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const socket = io();
+        const quantityInput = document.getElementById('quantity');
+        const addToCartBtn = document.getElementById('add-to-cart');
+        const decreaseBtn = document.querySelector('.decrease-quantity');
+        const increaseBtn = document.querySelector('.increase-quantity');
+
+        if (quantityInput && addToCartBtn) {
+            // Manejar cambios en la cantidad
+            const updateQuantity = (newValue) => {
+                const value = parseInt(newValue);
+                const max = parseInt(quantityInput.max);
+                if (value >= 1 && value <= max) {
+                    quantityInput.value = value;
+                }
+            };
+
+            decreaseBtn?.addEventListener('click', () => {
+                updateQuantity(parseInt(quantityInput.value) - 1);
+            });
+
+            increaseBtn?.addEventListener('click', () => {
+                updateQuantity(parseInt(quantityInput.value) + 1);
+            });
+
+            quantityInput.addEventListener('change', () => {
+                updateQuantity(quantityInput.value);
+            });
+
+            // Manejar agregar al carrito
+            addToCartBtn.addEventListener('click', async () => {
+                try {
+                    const response = await fetch(`/api/carts/{{cartId}}/products/{{product._id}}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            quantity: parseInt(quantityInput.value)
+                        })
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        // Actualizar contador del carrito
+                        document.getElementById('cart-count').textContent = 
+                            result.payload.products.reduce((total, item) => total + item.quantity, 0);
+                        
+                        // Actualizar stock mostrado
+                        const newStock = {{product.stock}} - parseInt(quantityInput.value);
+                        document.querySelector('p.mb-0').textContent = `${newStock} unidades disponibles`;
+                        quantityInput.max = newStock;
+                        
+                        if (newStock === 0) {
+                            window.location.reload();
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                }
+            });
+        }
+
+        // Escuchar actualizaciones en tiempo real
+        socket.on('productUpdated', (updatedProduct) => {
+            if (updatedProduct._id === '{{product._id}}') {
+                window.location.reload();
+            }
+        });
+    });
+</script> 
