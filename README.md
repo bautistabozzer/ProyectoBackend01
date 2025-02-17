@@ -273,8 +273,3 @@ public/
 - Persistencia en sesión
 - Proceso de checkout seguro
 
-## 🧪 Testing
-Para ejecutar los tests:
-\`\`\`bash
-npm test
-\`\`\`
