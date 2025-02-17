@@ -42,8 +42,8 @@ MultiShop es una aplicación de comercio electrónico desarrollada con Node.js y
 
 1. Clonar el repositorio:
 \`\`\`bash
-git clone <URL_DEL_REPOSITORIO>
-cd multishop-ecommerce
+git clone https://github.com/bautistabozzer/ProyectoBackend01.git
+cd ProyectoBackend01
 \`\`\`
 
 2. Instalar dependencias:
