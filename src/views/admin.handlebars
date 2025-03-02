@@ -194,114 +194,161 @@
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const socket = io();
-        const productForm = document.getElementById('product-form');
-        const editForm = document.getElementById('edit-form');
-        const editModal = new bootstrap.Modal(document.getElementById('editModal'));
-
-        // Funciones auxiliares
-        const formatThumbnails = (thumbnailsString) => {
-            if (!thumbnailsString) return [];
-            return thumbnailsString.split(',').map(url => url.trim()).filter(url => url);
-        };
-
-        const getFormData = (form) => {
-            const formData = new FormData(form);
-            const data = Object.fromEntries(formData);
-            data.status = formData.has('status');
-            data.onSale = formData.has('onSale');
-            data.thumbnails = formatThumbnails(data.thumbnails);
-            data.price = parseFloat(data.price);
-            data.stock = parseInt(data.stock);
-            return data;
-        };
-
-        // Event Listeners
-        productForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            try {
-                const response = await fetch('/api/products', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(getFormData(productForm))
-                });
-
-                if (!response.ok) throw new Error('Error al crear producto');
-                
-                productForm.reset();
-                window.location.reload();
-            } catch (error) {
-                console.error('Error:', error);
-            }
-        });
-
-        document.querySelectorAll('.edit-product').forEach(button => {
-            button.addEventListener('click', () => {
-                const product = JSON.parse(button.dataset.product);
-                const form = document.getElementById('edit-form');
-                
-                form.querySelector('[name="productId"]').value = product._id;
-                form.querySelector('[name="title"]').value = product.title;
-                form.querySelector('[name="description"]').value = product.description;
-                form.querySelector('[name="code"]').value = product.code;
-                form.querySelector('[name="price"]').value = product.price;
-                form.querySelector('[name="stock"]').value = product.stock;
-                form.querySelector('[name="category"]').value = product.category;
-                form.querySelector('[name="thumbnails"]').value = product.thumbnails.join(', ');
-                form.querySelector('[name="status"]').checked = product.status;
-                form.querySelector('[name="onSale"]').checked = product.onSale;
-
-                editModal.show();
-            });
-        });
-
-        document.getElementById('save-edit').addEventListener('click', async () => {
-            try {
-                const data = getFormData(editForm);
-                const productId = editForm.querySelector('[name="productId"]').value;
-
-                const response = await fetch(`/api/products/${productId}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(data)
-                });
-
-                if (!response.ok) throw new Error('Error al actualizar producto');
-                
-                editModal.hide();
-                window.location.reload();
-            } catch (error) {
-                console.error('Error:', error);
-            }
-        });
-
-        document.querySelectorAll('.delete-product').forEach(button => {
-            button.addEventListener('click', async () => {
-                if (confirm('¿Estás seguro de que deseas eliminar este producto?')) {
-                    const productId = button.dataset.productId;
-                    try {
-                        const response = await fetch(`/api/products/${productId}`, {
-                            method: 'DELETE'
-                        });
-
-                        if (!response.ok) throw new Error('Error al eliminar producto');
-                        
-                        window.location.reload();
-                    } catch (error) {
-                        console.error('Error:', error);
-                    }
+    document.addEventListener('DOMContentLoaded', async () => {
+        const token = localStorage.getItem('token');
+        
+        if (!token) {
+            console.error('No hay token disponible, redirigiendo a login');
+            window.location.href = '/login';
+            return;
+        }
+        
+        try {
+            console.log('Verificando usuario administrador con token:', token.substring(0, 20) + '...');
+            // Verificar que el usuario sea administrador
+            const response = await fetch('/api/sessions/current', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
                 }
             });
-        });
+            
+            if (!response.ok) {
+                console.error('Error al verificar usuario:', response.status, response.statusText);
+                throw new Error('No autorizado');
+            }
+            
+            const result = await response.json();
+            const user = result.payload;
+            
+            if (user.role !== 'admin') {
+                console.error('Usuario no es administrador:', user.role);
+                window.location.href = '/';
+                return;
+            }
+            
+            console.log('Usuario administrador verificado:', user.email);
+            
+            // Usar el socket global inicializado en el layout principal
+            const socket = io({
+                auth: {
+                    token: token
+                }
+            });
+            
+            const productForm = document.getElementById('product-form');
+            const editForm = document.getElementById('edit-form');
+            const editModal = new bootstrap.Modal(document.getElementById('editModal'));
 
-        // Escuchar actualizaciones en tiempo real
-        socket.on('productCreated', () => window.location.reload());
-        socket.on('productUpdated', () => window.location.reload());
-        socket.on('productDeleted', () => window.location.reload());
+            // Funciones auxiliares
+            const formatThumbnails = (thumbnailsString) => {
+                if (!thumbnailsString) return [];
+                return thumbnailsString.split(',').map(url => url.trim()).filter(url => url);
+            };
+
+            const getFormData = (form) => {
+                const formData = new FormData(form);
+                const data = Object.fromEntries(formData);
+                data.status = formData.has('status');
+                data.onSale = formData.has('onSale');
+                data.thumbnails = formatThumbnails(data.thumbnails);
+                data.price = parseFloat(data.price);
+                data.stock = parseInt(data.stock);
+                return data;
+            };
+
+            // Event Listeners
+            productForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                try {
+                    const response = await fetch('/api/products', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify(getFormData(productForm))
+                    });
+
+                    if (!response.ok) throw new Error('Error al crear producto');
+                    
+                    productForm.reset();
+                    window.location.reload();
+                } catch (error) {
+                    console.error('Error:', error);
+                }
+            });
+
+            document.querySelectorAll('.edit-product').forEach(button => {
+                button.addEventListener('click', () => {
+                    const product = JSON.parse(button.dataset.product);
+                    const form = document.getElementById('edit-form');
+                    
+                    form.querySelector('[name="productId"]').value = product._id;
+                    form.querySelector('[name="title"]').value = product.title;
+                    form.querySelector('[name="description"]').value = product.description;
+                    form.querySelector('[name="code"]').value = product.code;
+                    form.querySelector('[name="price"]').value = product.price;
+                    form.querySelector('[name="stock"]').value = product.stock;
+                    form.querySelector('[name="category"]').value = product.category;
+                    form.querySelector('[name="thumbnails"]').value = product.thumbnails.join(', ');
+                    form.querySelector('[name="status"]').checked = product.status;
+                    form.querySelector('[name="onSale"]').checked = product.onSale;
+
+                    editModal.show();
+                });
+            });
+
+            document.getElementById('save-edit').addEventListener('click', async () => {
+                try {
+                    const data = getFormData(editForm);
+                    const productId = editForm.querySelector('[name="productId"]').value;
+
+                    const response = await fetch(`/api/products/${productId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    if (!response.ok) throw new Error('Error al actualizar producto');
+                    
+                    editModal.hide();
+                    window.location.reload();
+                } catch (error) {
+                    console.error('Error:', error);
+                }
+            });
+
+            document.querySelectorAll('.delete-product').forEach(button => {
+                button.addEventListener('click', async () => {
+                    if (confirm('¿Estás seguro de que deseas eliminar este producto?')) {
+                        const productId = button.dataset.productId;
+                        try {
+                            const response = await fetch(`/api/products/${productId}`, {
+                                method: 'DELETE',
+                                headers: {
+                                    'Authorization': `Bearer ${token}`
+                                }
+                            });
+
+                            if (!response.ok) throw new Error('Error al eliminar producto');
+                            
+                            window.location.reload();
+                        } catch (error) {
+                            console.error('Error:', error);
+                        }
+                    }
+                });
+            });
+
+            // Escuchar actualizaciones en tiempo real
+            socket.on('productCreated', () => window.location.reload());
+            socket.on('productUpdated', () => window.location.reload());
+            socket.on('productDeleted', () => window.location.reload());
+        } catch (error) {
+            console.error('Error:', error);
+        }
     });
 </script> 

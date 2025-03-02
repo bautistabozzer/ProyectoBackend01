@@ -1,281 +1,297 @@
 <div class="row">
-    <div class="col-md-8">
-        <div class="card">
+    <div class="col-lg-8">
+        <div class="card shadow-sm mb-4">
             <div class="card-body">
                 <h5 class="card-title">Mi Carrito</h5>
-                {{#if cart.products.length}}
-                <div class="table-responsive">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Producto</th>
-                                <th>Precio</th>
-                                <th>Cantidad</th>
-                                <th>Subtotal</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {{#each cart.products}}
-                            <tr>
-                                <td>
-                                    <div class="d-flex align-items-center">
-                                        {{#if product.thumbnails.[0]}}
-                                        <img src="{{product.thumbnails.[0]}}" alt="{{product.title}}" class="me-2" style="width: 50px; height: 50px; object-fit: cover;">
-                                        {{else}}
-                                        <div class="bg-secondary text-white d-flex align-items-center justify-content-center me-2" style="width: 50px; height: 50px;">
-                                            <i class="bi bi-image"></i>
-                                        </div>
-                                        {{/if}}
-                                        <div>
-                                            <h6 class="mb-0">{{product.title}}</h6>
-                                            <small class="text-muted">{{product.code}}</small>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    {{#if product.onSale}}
-                                    <span class="text-decoration-line-through text-muted">${{product.price}}</span>
-                                    <span class="text-danger">${{product.finalPrice}}</span>
-                                    {{else}}
-                                    ${{product.price}}
-                                    {{/if}}
-                                </td>
-                                <td>
-                                    <div class="input-group" style="width: 120px;">
-                                        <button class="btn btn-outline-secondary decrease-quantity" type="button" data-product-id="{{product._id}}">-</button>
-                                        <input type="number" class="form-control text-center quantity-input" value="{{quantity}}" min="1" data-product-id="{{product._id}}">
-                                        <button class="btn btn-outline-secondary increase-quantity" type="button" data-product-id="{{product._id}}">+</button>
-                                    </div>
-                                </td>
-                                <td>${{multiply product.finalPrice quantity}}</td>
-                                <td>
-                                    <button class="btn btn-danger btn-sm remove-item" data-product-id="{{product._id}}">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            {{/each}}
-                        </tbody>
-                    </table>
+                <div id="cart-items">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                        <p class="mt-3">Cargando carrito...</p>
+                    </div>
                 </div>
-                {{else}}
-                <div class="text-center py-4">
-                    <i class="bi bi-cart-x fs-1 text-muted"></i>
-                    <p class="mt-2">Tu carrito está vacío</p>
-                    <a href="/" class="btn btn-primary">Ir a comprar</a>
-                </div>
-                {{/if}}
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        {{#if cart.products.length}}
-        <div class="card">
+    <div class="col-lg-4">
+        <div class="card shadow-sm">
             <div class="card-body">
                 <h5 class="card-title">Resumen</h5>
                 <div class="d-flex justify-content-between mb-2">
                     <span>Subtotal:</span>
-                    <span>${{subtotal}}</span>
+                    <span id="subtotal">$0.00</span>
                 </div>
-                {{#if savings}}
                 <div class="d-flex justify-content-between mb-2 text-success">
-                    <span>Ahorro:</span>
-                    <span>-${{savings}}</span>
+                    <span>Descuento:</span>
+                    <span id="discount">-$0.00</span>
                 </div>
-                {{/if}}
                 <hr>
-                <div class="d-flex justify-content-between mb-3">
-                    <strong>Total:</strong>
-                    <strong>${{total}}</strong>
+                <div class="d-flex justify-content-between mb-3 fw-bold">
+                    <span>Total:</span>
+                    <span id="total">$0.00</span>
                 </div>
-                <button class="btn btn-primary w-100" id="checkout-btn">
-                    Proceder al pago
-                </button>
-                <button class="btn btn-outline-danger w-100 mt-2" id="clear-cart-btn">
-                    Vaciar carrito
+                <button id="checkout-btn" class="btn btn-primary w-100" disabled>
+                    Finalizar Compra
                 </button>
             </div>
         </div>
-        {{/if}}
     </div>
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const socket = io();
+    document.addEventListener('DOMContentLoaded', async () => {
+        const token = localStorage.getItem('token');
+        const cartItemsContainer = document.getElementById('cart-items');
+        const subtotalElement = document.getElementById('subtotal');
+        const discountElement = document.getElementById('discount');
+        const totalElement = document.getElementById('total');
+        const checkoutBtn = document.getElementById('checkout-btn');
         
-        // Funciones auxiliares
-        const updateQuantity = async (productId, newQuantity) => {
+        // Verificar autenticación
+        if (!token) {
+            cartItemsContainer.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    Debes iniciar sesión para ver tu carrito
+                </div>
+                <div class="text-center">
+                    <a href="/login" class="btn btn-primary">Iniciar Sesión</a>
+                </div>
+            `;
+            return;
+        }
+        
+        // Cargar carrito
+        await loadCart();
+        
+        // Función para cargar el carrito
+        async function loadCart() {
             try {
-                const response = await fetch(`/api/carts/{{cart._id}}/products/${productId}`, {
-                    method: 'PUT',
+                const response = await fetch('/api/carts/current', {
                     headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ quantity: newQuantity })
-                });
-
-                if (!response.ok) throw new Error('Error al actualizar cantidad');
-                
-                // Recargar la página para mostrar los cambios
-                window.location.reload();
-            } catch (error) {
-                console.error('Error:', error);
-            }
-        };
-
-        // Event Listeners
-        document.querySelectorAll('.decrease-quantity').forEach(button => {
-            button.addEventListener('click', () => {
-                const productId = button.dataset.productId;
-                const input = document.querySelector(`.quantity-input[data-product-id="${productId}"]`);
-                const newQuantity = parseInt(input.value) - 1;
-                if (newQuantity >= 1) {
-                    updateQuantity(productId, newQuantity);
-                }
-            });
-        });
-
-        document.querySelectorAll('.increase-quantity').forEach(button => {
-            button.addEventListener('click', () => {
-                const productId = button.dataset.productId;
-                const input = document.querySelector(`.quantity-input[data-product-id="${productId}"]`);
-                const newQuantity = parseInt(input.value) + 1;
-                updateQuantity(productId, newQuantity);
-            });
-        });
-
-        document.querySelectorAll('.quantity-input').forEach(input => {
-            input.addEventListener('change', () => {
-                const productId = input.dataset.productId;
-                const newQuantity = parseInt(input.value);
-                if (newQuantity >= 1) {
-                    updateQuantity(productId, newQuantity);
-                } else {
-                    input.value = 1;
-                }
-            });
-        });
-
-        document.querySelectorAll('.remove-item').forEach(button => {
-            button.addEventListener('click', async () => {
-                const productId = button.dataset.productId;
-                try {
-                    const response = await fetch(`/api/carts/{{cart._id}}/products/${productId}`, {
-                        method: 'DELETE'
-                    });
-
-                    if (!response.ok) throw new Error('Error al eliminar producto');
-                    
-                    window.location.reload();
-                } catch (error) {
-                    console.error('Error:', error);
-                }
-            });
-        });
-
-        document.getElementById('clear-cart-btn')?.addEventListener('click', async () => {
-            if (confirm('¿Estás seguro de que deseas vaciar el carrito?')) {
-                try {
-                    const response = await fetch(`/api/carts/{{cart._id}}`, {
-                        method: 'DELETE'
-                    });
-
-                    if (!response.ok) throw new Error('Error al vaciar carrito');
-                    
-                    window.location.reload();
-                } catch (error) {
-                    console.error('Error:', error);
-                }
-            }
-        });
-
-        // Escuchar actualizaciones en tiempo real
-        socket.on('cartUpdated', (updatedCart) => {
-            if (updatedCart._id === '{{cart._id}}') {
-                window.location.reload();
-            }
-        });
-
-        // Manejar el checkout
-        document.getElementById('checkout-btn')?.addEventListener('click', async () => {
-            try {
-                const response = await fetch(`/api/carts/{{cart._id}}/checkout`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
+                        'Authorization': `Bearer ${token}`
                     }
                 });
-
+                
+                if (!response.ok) {
+                    throw new Error('Error al cargar el carrito');
+                }
+                
                 const result = await response.json();
-
-                if (response.ok) {
-                    // Crear el elemento del modal
-                    const modalDiv = document.createElement('div');
-                    modalDiv.className = 'modal fade';
-                    modalDiv.innerHTML = `
-                        <div class="modal-dialog">
-                            <div class="modal-content">
-                                <div class="modal-header bg-success text-white">
-                                    <h5 class="modal-title">¡Compra Exitosa!</h5>
-                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                                </div>
-                                <div class="modal-body text-center">
-                                    <i class="bi bi-check-circle text-success display-1"></i>
-                                    <p class="mt-3">Tu compra ha sido procesada exitosamente.</p>
-                                    <p class="text-muted">Recibirás un correo con los detalles de tu pedido.</p>
-                                </div>
-                                <div class="modal-footer">
-                                    <a href="/" class="btn btn-primary">Seguir Comprando</a>
-                                </div>
-                            </div>
+                const cart = result.payload.cart;
+                
+                if (cart.products.length === 0) {
+                    cartItemsContainer.innerHTML = `
+                        <div class="text-center py-4">
+                            <i class="bi bi-cart-x display-4 text-muted"></i>
+                            <p class="mt-3">Tu carrito está vacío</p>
+                            <a href="/" class="btn btn-primary mt-2">Ver Productos</a>
                         </div>
                     `;
-                    document.body.appendChild(modalDiv);
-                    
-                    // Crear y mostrar el modal
-                    const successModal = new bootstrap.Modal(modalDiv);
-                    successModal.show();
-
-                    // Actualizar el contador del carrito a 0
-                    document.getElementById('cart-count').textContent = '0';
-
-                    // Redirigir al nuevo carrito vacío después de 2 segundos
-                    setTimeout(() => {
-                        window.location.href = '/cart';
-                    }, 2000);
-                } else {
-                    throw new Error(result.message);
+                    checkoutBtn.disabled = true;
+                    return;
                 }
-            } catch (error) {
-                // Crear el elemento del modal de error
-                const modalDiv = document.createElement('div');
-                modalDiv.className = 'modal fade';
-                modalDiv.innerHTML = `
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header bg-danger text-white">
-                                <h5 class="modal-title">Error</h5>
-                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body text-center">
-                                <i class="bi bi-exclamation-circle text-danger display-1"></i>
-                                <p class="mt-3">No se pudo procesar tu compra.</p>
-                                <p class="text-muted">${error.message}</p>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                
+                // Habilitar botón de checkout
+                checkoutBtn.disabled = false;
+                
+                // Calcular totales
+                let subtotal = 0;
+                let total = 0;
+                let discount = 0;
+                
+                // Generar HTML para los items del carrito
+                let cartItemsHTML = '';
+                
+                cart.products.forEach(item => {
+                    const product = item.product;
+                    const quantity = item.quantity;
+                    const price = product.price;
+                    const finalPrice = product.onSale ? product.finalPrice : price;
+                    
+                    const itemSubtotal = price * quantity;
+                    const itemTotal = finalPrice * quantity;
+                    const itemDiscount = itemSubtotal - itemTotal;
+                    
+                    subtotal += itemSubtotal;
+                    total += itemTotal;
+                    discount += itemDiscount;
+                    
+                    cartItemsHTML += `
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-md-2 col-4">
+                                    <img src="${product.thumbnails[0] || '/img/placeholder.png'}" class="img-fluid rounded" alt="${product.title}">
+                                </div>
+                                <div class="col-md-4 col-8">
+                                    <h6 class="mb-0">${product.title}</h6>
+                                    <p class="text-muted small mb-0">Código: ${product.code}</p>
+                                </div>
+                                <div class="col-md-2 col-4 mt-3 mt-md-0">
+                                    <div class="input-group input-group-sm">
+                                        <button class="btn btn-outline-secondary decrease-quantity" data-product-id="${product._id}">-</button>
+                                        <input type="text" class="form-control text-center" value="${quantity}" readonly>
+                                        <button class="btn btn-outline-secondary increase-quantity" data-product-id="${product._id}">+</button>
+                                    </div>
+                                </div>
+                                <div class="col-md-2 col-4 mt-3 mt-md-0 text-center">
+                                    ${product.onSale ? 
+                                        `<p class="mb-0 text-decoration-line-through text-muted">$${price.toFixed(2)}</p>
+                                        <p class="mb-0 text-danger">$${finalPrice.toFixed(2)}</p>` : 
+                                        `<p class="mb-0">$${price.toFixed(2)}</p>`
+                                    }
+                                </div>
+                                <div class="col-md-2 col-4 mt-3 mt-md-0 text-end">
+                                    <p class="mb-0 fw-bold">$${itemTotal.toFixed(2)}</p>
+                                    <button class="btn btn-sm btn-link text-danger remove-item" data-product-id="${product._id}">
+                                        <i class="bi bi-trash"></i> Eliminar
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                `;
-                document.body.appendChild(modalDiv);
+                    `;
+                });
                 
-                // Crear y mostrar el modal de error
-                const errorModal = new bootstrap.Modal(modalDiv);
-                errorModal.show();
+                cartItemsContainer.innerHTML = cartItemsHTML;
+                
+                // Actualizar totales
+                subtotalElement.textContent = `$${subtotal.toFixed(2)}`;
+                discountElement.textContent = `-$${discount.toFixed(2)}`;
+                totalElement.textContent = `$${total.toFixed(2)}`;
+                
+                // Añadir event listeners para los botones
+                document.querySelectorAll('.increase-quantity').forEach(button => {
+                    button.addEventListener('click', () => updateQuantity(button.dataset.productId, 1));
+                });
+                
+                document.querySelectorAll('.decrease-quantity').forEach(button => {
+                    button.addEventListener('click', () => updateQuantity(button.dataset.productId, -1));
+                });
+                
+                document.querySelectorAll('.remove-item').forEach(button => {
+                    button.addEventListener('click', () => removeItem(button.dataset.productId));
+                });
+                
+                // Añadir event listener para el botón de checkout
+                checkoutBtn.addEventListener('click', checkout);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                cartItemsContainer.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        Error al cargar el carrito
+                    </div>
+                `;
             }
-        });
+        }
+        
+        // Función para actualizar la cantidad de un producto
+        async function updateQuantity(productId, change) {
+            try {
+                const response = await fetch(`/api/carts/current/products/${productId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ change })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || 'Error al actualizar cantidad');
+                }
+                
+                // Recargar carrito
+                await loadCart();
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert(error.message || 'Error al actualizar cantidad');
+            }
+        }
+        
+        // Función para eliminar un producto del carrito
+        async function removeItem(productId) {
+            try {
+                const response = await fetch(`/api/carts/current/products/${productId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Error al eliminar producto');
+                }
+                
+                // Recargar carrito
+                await loadCart();
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al eliminar producto');
+            }
+        }
+        
+        // Función para finalizar la compra
+        async function checkout() {
+            try {
+                checkoutBtn.disabled = true;
+                checkoutBtn.innerHTML = `
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    Procesando...
+                `;
+                
+                const response = await fetch('/api/carts/current/checkout', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || 'Error al procesar la compra');
+                }
+                
+                // Mostrar mensaje de éxito y redirigir después de 2 segundos
+                cartItemsContainer.innerHTML = `
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle-fill me-2"></i>
+                        ¡Compra realizada con éxito! Redirigiendo a tu perfil...
+                    </div>
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Redirigiendo...</span>
+                        </div>
+                    </div>
+                `;
+                
+                // Actualizar totales
+                subtotalElement.textContent = '$0.00';
+                discountElement.textContent = '-$0.00';
+                totalElement.textContent = '$0.00';
+                checkoutBtn.disabled = true;
+                
+                // Actualizar contador del carrito
+                document.getElementById('cart-count').textContent = '0';
+                
+                // Redirigir al perfil después de 2 segundos
+                setTimeout(() => {
+                    window.location.href = `/profile?token=${token}`;
+                }, 2000);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                checkoutBtn.disabled = false;
+                checkoutBtn.textContent = 'Finalizar Compra';
+                alert(error.message || 'Error al procesar la compra');
+            }
+        }
     });
 </script> 

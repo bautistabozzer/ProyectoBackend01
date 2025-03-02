@@ -1,0 +1,236 @@
+<div class="row">
+    <div class="col-md-4">
+        <div class="card shadow">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 100px; height: 100px;">
+                        <span class="display-4" id="user-initials"></span>
+                    </div>
+                </div>
+                <h3 id="user-name" class="mb-1"></h3>
+                <p id="user-email" class="text-muted"></p>
+                <p id="user-role" class="badge bg-info"></p>
+                <hr>
+                <div class="d-grid gap-2">
+                    <button id="logout-btn" class="btn btn-danger">
+                        <i class="bi bi-box-arrow-right"></i> Cerrar Sesión
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-body">
+                <h4 class="card-title">Mis Datos</h4>
+                <div class="mb-3">
+                    <label class="form-label">Nombre Completo</label>
+                    <p id="full-name" class="form-control-plaintext"></p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Correo Electrónico</label>
+                    <p id="email" class="form-control-plaintext"></p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Rol</label>
+                    <p id="role" class="form-control-plaintext"></p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Última Conexión</label>
+                    <p id="last-connection" class="form-control-plaintext"></p>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Cuenta Creada</label>
+                    <p id="created-at" class="form-control-plaintext"></p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card shadow mt-4">
+            <div class="card-body">
+                <h4 class="card-title">Historial de Compras</h4>
+                <div id="purchase-history">
+                    <div class="text-center py-3" id="loading-purchases">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                        <p class="mt-2">Cargando historial de compras...</p>
+                    </div>
+                    <div id="no-purchases" style="display: none;">
+                        <p class="text-muted text-center py-3">No hay compras registradas</p>
+                    </div>
+                    <div id="purchases-list" style="display: none;">
+                        <!-- Aquí se mostrarán las compras -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', async () => {
+        // Verificar si hay un token en la URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlToken = urlParams.get('token');
+        
+        // Usar el token de la URL o del localStorage
+        let token = urlToken || localStorage.getItem('token');
+        
+        // Si hay un token en la URL, guardarlo en localStorage
+        if (urlToken) {
+            localStorage.setItem('token', urlToken);
+            // Limpiar la URL para mayor seguridad
+            window.history.replaceState({}, document.title, '/profile');
+        }
+        
+        if (!token) {
+            console.error('No hay token disponible, redirigiendo a login');
+            window.location.href = '/login';
+            return;
+        }
+        
+        try {
+            console.log('Obteniendo datos del usuario con token:', token.substring(0, 20) + '...');
+            const response = await fetch('/api/sessions/current', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (!response.ok) {
+                console.error('Error al obtener datos del usuario:', response.status, response.statusText);
+                throw new Error('No autorizado');
+            }
+            
+            const result = await response.json();
+            const user = result.payload;
+            
+            console.log('Datos del usuario obtenidos correctamente:', user.email, 'Rol:', user.role);
+            
+            // Mostrar datos del usuario
+            document.getElementById('user-initials').textContent = `${user.firstName.charAt(0)}${user.lastName.charAt(0)}`;
+            document.getElementById('user-name').textContent = `${user.firstName} ${user.lastName}`;
+            document.getElementById('user-email').textContent = user.email;
+            document.getElementById('user-role').textContent = user.role === 'admin' ? 'Administrador' : 'Usuario';
+            
+            document.getElementById('full-name').textContent = `${user.firstName} ${user.lastName}`;
+            document.getElementById('email').textContent = user.email;
+            document.getElementById('role').textContent = user.role === 'admin' ? 'Administrador' : 'Usuario';
+            document.getElementById('last-connection').textContent = new Date(user.lastConnection).toLocaleString();
+            document.getElementById('created-at').textContent = new Date(user.createdAt).toLocaleString();
+            
+            // Cargar historial de compras
+            await loadPurchaseHistory(token);
+            
+            // Manejar cierre de sesión
+            document.getElementById('logout-btn').addEventListener('click', async () => {
+                try {
+                    await fetch('/api/sessions/logout', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    
+                    localStorage.removeItem('token');
+                    window.location.href = '/login';
+                } catch (error) {
+                    console.error('Error al cerrar sesión:', error);
+                }
+            });
+            
+        } catch (error) {
+            console.error('Error al obtener datos del usuario:', error);
+            localStorage.removeItem('token');
+            window.location.href = '/login';
+        }
+    });
+    
+    // Función para cargar el historial de compras
+    async function loadPurchaseHistory(token) {
+        try {
+            const response = await fetch('/api/sessions/purchase-history', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Error al obtener historial de compras');
+            }
+            
+            const result = await response.json();
+            const purchases = result.payload;
+            
+            // Ocultar indicador de carga
+            document.getElementById('loading-purchases').style.display = 'none';
+            
+            if (purchases.length === 0) {
+                // Mostrar mensaje de no hay compras
+                document.getElementById('no-purchases').style.display = 'block';
+                return;
+            }
+            
+            // Mostrar lista de compras
+            const purchasesList = document.getElementById('purchases-list');
+            purchasesList.style.display = 'block';
+            
+            // Crear HTML para cada compra
+            let purchasesHTML = '';
+            
+            purchases.forEach((purchase, index) => {
+                const date = new Date(purchase.completedAt).toLocaleString();
+                const total = purchase.products.reduce((sum, item) => {
+                    const price = item.product.onSale ? item.product.finalPrice : item.product.price;
+                    return sum + (price * item.quantity);
+                }, 0);
+                
+                purchasesHTML += `
+                <div class="card mb-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>Compra #${index + 1}</span>
+                        <span class="text-muted">${date}</span>
+                    </div>
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-3">Productos:</h6>
+                        <ul class="list-group mb-3">
+                `;
+                
+                purchase.products.forEach(item => {
+                    const price = item.product.onSale ? item.product.finalPrice : item.product.price;
+                    purchasesHTML += `
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">${item.product.title}</h6>
+                            <small class="text-muted">Cantidad: ${item.quantity}</small>
+                        </div>
+                        <span>$${price.toFixed(2)} c/u</span>
+                    </li>
+                    `;
+                });
+                
+                purchasesHTML += `
+                        </ul>
+                        <div class="text-end">
+                            <h5>Total: $${total.toFixed(2)}</h5>
+                        </div>
+                    </div>
+                </div>
+                `;
+            });
+            
+            purchasesList.innerHTML = purchasesHTML;
+            
+        } catch (error) {
+            console.error('Error al cargar historial de compras:', error);
+            document.getElementById('loading-purchases').style.display = 'none';
+            document.getElementById('no-purchases').style.display = 'block';
+            document.getElementById('no-purchases').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle-fill"></i> Error al cargar el historial de compras
+                </div>
+            `;
+        }
+    }
+</script> 

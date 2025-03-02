@@ -123,11 +123,20 @@
 
             // Manejar agregar al carrito
             addToCartBtn.addEventListener('click', async () => {
+                const token = localStorage.getItem('token');
+                
+                // Verificar si el usuario está autenticado
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
+                
                 try {
-                    const response = await fetch(`/api/carts/{{cartId}}/products/{{product._id}}`, {
+                    const response = await fetch(`/api/carts/current/products/{{product._id}}`, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
                         },
                         body: JSON.stringify({
                             quantity: parseInt(quantityInput.value)
@@ -145,12 +154,19 @@
                         document.querySelector('p.mb-0').textContent = `${newStock} unidades disponibles`;
                         quantityInput.max = newStock;
                         
+                        // Mostrar mensaje de éxito
+                        window.multishop.showToast('Producto agregado al carrito', 'success');
+                        
                         if (newStock === 0) {
                             window.location.reload();
                         }
+                    } else {
+                        const error = await response.json();
+                        window.multishop.showToast(error.message || 'Error al agregar al carrito', 'danger');
                     }
                 } catch (error) {
                     console.error('Error:', error);
+                    window.multishop.showToast('Error al agregar al carrito', 'danger');
                 }
             });
         }

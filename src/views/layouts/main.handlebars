@@ -20,15 +20,30 @@
                     <li class="nav-item">
                         <a class="nav-link" href="/">Productos</a>
                     </li>
-                    <li class="nav-item">
+                    <li class="nav-item admin-link" style="display: none;">
                         <a class="nav-link" href="/admin">Panel Admin</a>
                     </li>
                 </ul>
-                <div class="d-flex">
-                    <a href="/cart" class="btn btn-outline-light">
+                <div class="d-flex align-items-center">
+                    <a href="/cart" class="btn btn-outline-light me-2">
                         <i class="bi bi-cart3"></i>
                         <span id="cart-count" class="badge bg-danger ms-1">0</span>
                     </a>
+                    <div class="dropdown auth-dropdown" style="display: none;">
+                        <button class="btn btn-outline-light dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-person-circle"></i>
+                            <span id="user-name-nav"></span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li><a class="dropdown-item" href="/profile"><i class="bi bi-person"></i> Mi Perfil</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" id="logout-link"><i class="bi bi-box-arrow-right"></i> Cerrar Sesión</a></li>
+                        </ul>
+                    </div>
+                    <div class="auth-buttons">
+                        <a href="/login" class="btn btn-outline-light me-2">Iniciar Sesión</a>
+                        <a href="/register" class="btn btn-primary">Registrarse</a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -64,6 +79,107 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // Inicializar Socket.IO con el token JWT
+        const token = localStorage.getItem('token');
+        const socket = io({
+            auth: {
+                token: token
+            }
+        });
+    </script>
     <script src="/js/main.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const token = localStorage.getItem('token');
+            const authDropdown = document.querySelector('.auth-dropdown');
+            const authButtons = document.querySelector('.auth-buttons');
+            const adminLink = document.querySelector('.admin-link');
+            const logoutLink = document.getElementById('logout-link');
+            
+            // Función para añadir token a los enlaces protegidos
+            const updateProtectedLinks = (token) => {
+                if (!token) return;
+                
+                // Actualizar enlaces protegidos
+                const protectedLinks = document.querySelectorAll('a[href="/admin"], a[href="/profile"]');
+                protectedLinks.forEach(link => {
+                    const currentHref = link.getAttribute('href');
+                    link.setAttribute('href', `${currentHref}?token=${token}`);
+                });
+            };
+            
+            if (token) {
+                try {
+                    console.log('Verificando token...');
+                    const response = await fetch('/api/sessions/current', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        const user = result.payload;
+                        
+                        console.log('Usuario autenticado:', user.email, 'Rol:', user.role);
+                        
+                        // Mostrar menú de usuario
+                        authDropdown.style.display = 'block';
+                        authButtons.style.display = 'none';
+                        
+                        // Mostrar nombre de usuario
+                        document.getElementById('user-name-nav').textContent = user.firstName;
+                        
+                        // Mostrar enlace de admin si corresponde
+                        if (user.role === 'admin') {
+                            console.log('Mostrando enlace de admin');
+                            adminLink.style.display = 'block';
+                        } else {
+                            console.log('Usuario no es admin, ocultando enlace');
+                            adminLink.style.display = 'none';
+                        }
+                        
+                        // Actualizar enlaces protegidos
+                        updateProtectedLinks(token);
+                        
+                        // Manejar cierre de sesión
+                        logoutLink.addEventListener('click', async (e) => {
+                            e.preventDefault();
+                            try {
+                                await fetch('/api/sessions/logout', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Authorization': `Bearer ${token}`
+                                    }
+                                });
+                                
+                                localStorage.removeItem('token');
+                                window.location.href = '/login';
+                            } catch (error) {
+                                console.error('Error al cerrar sesión:', error);
+                            }
+                        });
+                    } else {
+                        // Token inválido
+                        console.error('Token inválido o expirado');
+                        localStorage.removeItem('token');
+                        authDropdown.style.display = 'none';
+                        authButtons.style.display = 'flex';
+                    }
+                } catch (error) {
+                    console.error('Error al verificar sesión:', error);
+                    localStorage.removeItem('token');
+                    authDropdown.style.display = 'none';
+                    authButtons.style.display = 'flex';
+                }
+            } else {
+                // No hay token
+                console.log('No hay token de autenticación');
+                authDropdown.style.display = 'none';
+                authButtons.style.display = 'flex';
+            }
+        });
+    </script>
 </body>
 </html> 

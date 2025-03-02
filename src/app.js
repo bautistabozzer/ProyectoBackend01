@@ -8,11 +8,21 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { connectDB } from './config/database.config.js';
 import { helpers } from './utils/handlebars.helpers.js';
+import passport from 'passport';
+import { initializePassport } from './config/passport.config.js';
+import cookieParser from 'cookie-parser';
+import MongoStore from 'connect-mongo';
+import dotenv from 'dotenv';
+import { verifyToken } from './utils/jwt.utils.js';
 
 // Rutas
 import viewRoutes from './routes/view.routes.js';
 import productRoutes from './routes/product.routes.js';
 import cartRoutes from './routes/cart.routes.js';
+import authRoutes from './routes/auth.routes.js';
+
+// Configuración de variables de entorno
+dotenv.config();
 
 // Configuración de __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -28,16 +38,36 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../public')));
+app.use(cookieParser());
 
 // Configuración de sesión
 app.use(session({
     secret: process.env.SESSION_SECRET || 'secreto',
     resave: false,
     saveUninitialized: true,
+    store: MongoStore.create({
+        mongoUrl: process.env.MONGODB_URI || 'mongodb://localhost:27017/multishop',
+        ttl: 60 * 60 * 24 // 1 día
+    }),
     cookie: {
         maxAge: 1000 * 60 * 60 * 24 // 1 día
     }
 }));
+
+// Inicialización de Passport
+initializePassport();
+app.use(passport.initialize());
+
+// Middleware para depuración de autenticación
+app.use((req, res, next) => {
+    console.log('Ruta:', req.path);
+    console.log('Método:', req.method);
+    console.log('Headers de autenticación:', req.headers.authorization ? 
+        `Presente (${req.headers.authorization.substring(0, 15)}...)` : 
+        'No presente');
+    console.log('Query params:', JSON.stringify(req.query));
+    next();
+});
 
 // Configuración de Handlebars
 app.engine('handlebars', engine({
@@ -60,6 +90,7 @@ app.set('io', io);
 app.use('/', viewRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/carts', cartRoutes);
+app.use('/api/sessions', authRoutes);
 
 // Manejo de errores 404
 app.use((req, res) => {
@@ -77,11 +108,34 @@ app.use((err, req, res, next) => {
 });
 
 // Configuración de Socket.IO
+io.use((socket, next) => {
+    const token = socket.handshake.auth.token;
+    if (!token) {
+        console.log('Socket.IO: No se proporcionó token');
+        return next(new Error('No autorizado'));
+    }
+    
+    try {
+        const decoded = verifyToken(token);
+        if (!decoded) {
+            console.log('Socket.IO: Token inválido');
+            return next(new Error('Token inválido'));
+        }
+        
+        socket.user = decoded;
+        console.log('Socket.IO: Usuario autenticado:', decoded.email, 'Rol:', decoded.role);
+        next();
+    } catch (error) {
+        console.error('Socket.IO: Error al verificar token:', error);
+        next(new Error('Error de autenticación'));
+    }
+});
+
 io.on('connection', (socket) => {
-    console.log('Cliente conectado');
+    console.log('Cliente conectado:', socket.user?.email || 'Anónimo');
 
     socket.on('disconnect', () => {
-        console.log('Cliente desconectado');
+        console.log('Cliente desconectado:', socket.user?.email || 'Anónimo');
     });
 });
 

@@ -18,6 +18,11 @@ const cartSchema = new mongoose.Schema({
         enum: ['active', 'completed'],
         default: 'active'
     },
+    user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null
+    },
     completedAt: {
         type: Date,
         default: null

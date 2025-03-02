@@ -5,15 +5,25 @@ export class CartController {
     // Crear un nuevo carrito
     static async createCart(req, res) {
         try {
-            const newCart = await CartModel.create({ products: [] });
-            res.status(201).json({
+            const userId = req.user?._id || null;
+            
+            const cart = await CartModel.create({
+                user: userId,
+                products: []
+            });
+            
+            return res.status(201).json({
                 status: 'success',
-                payload: newCart
+                message: 'Carrito creado exitosamente',
+                payload: {
+                    cart
+                }
             });
         } catch (error) {
-            res.status(400).json({
+            console.error('Error al crear carrito:', error);
+            return res.status(500).json({
                 status: 'error',
-                message: error.message
+                message: 'Error al crear el carrito'
             });
         }
     }
@@ -23,7 +33,7 @@ export class CartController {
         try {
             const { cid } = req.params;
             const cart = await CartModel.findById(cid);
-
+            
             if (!cart) {
                 return res.status(404).json({
                     status: 'error',
@@ -31,6 +41,7 @@ export class CartController {
                 });
             }
 
+            // Calcular totales
             const total = await cart.calculateTotal();
             const subtotal = await cart.calculateSubTotal();
             const savings = await cart.calculateSavings();
@@ -52,13 +63,93 @@ export class CartController {
         }
     }
 
+    // Obtener carrito actual del usuario
+    static async getCurrentCart(req, res) {
+        try {
+            // Verificar si el usuario está autenticado
+            if (!req.user || !req.user._id) {
+                return res.status(401).json({
+                    status: 'error',
+                    message: 'Usuario no autenticado'
+                });
+            }
+            
+            const userId = req.user._id;
+            
+            // Buscar carrito activo del usuario
+            let cart = await CartModel.findOne({ 
+                user: userId, 
+                status: 'active' 
+            }).populate('products.product');
+            
+            // Si no existe, crear uno nuevo
+            if (!cart) {
+                cart = await CartModel.create({
+                    user: userId,
+                    products: []
+                });
+            }
+            
+            return res.status(200).json({
+                status: 'success',
+                payload: {
+                    cart
+                }
+            });
+        } catch (error) {
+            console.error('Error al obtener carrito actual:', error);
+            return res.status(500).json({
+                status: 'error',
+                message: 'Error al obtener el carrito actual'
+            });
+        }
+    }
+
     // Agregar producto al carrito
     static async addProductToCart(req, res) {
         try {
-            const { cid, pid } = req.params;
+            // Obtener parámetros
+            const { pid } = req.params;
             const { quantity = 1 } = req.body;
+            
+            // Si es una ruta con /current/, obtener el ID del usuario del token
+            let cartId;
+            if (req.path.includes('/current/')) {
+                // Verificar si el usuario está autenticado
+                if (!req.user || !req.user._id) {
+                    return res.status(401).json({
+                        status: 'error',
+                        message: 'Usuario no autenticado'
+                    });
+                }
+                
+                // Obtener el carrito activo del usuario
+                const userId = req.user._id;
+                let cart = await CartModel.findOne({ user: userId, status: 'active' });
+                
+                // Si no existe, crear uno nuevo
+                if (!cart) {
+                    cart = await CartModel.create({
+                        user: userId,
+                        products: []
+                    });
+                }
+                
+                cartId = cart._id;
+            } else {
+                // Ruta tradicional con ID de carrito
+                cartId = req.params.cid;
+            }
 
-            // Verificar que el producto existe y tiene stock suficiente
+            // Validar cantidad
+            if (quantity <= 0) {
+                return res.status(400).json({
+                    status: 'error',
+                    message: 'La cantidad debe ser mayor a 0'
+                });
+            }
+
+            // Buscar producto
             const product = await ProductModel.findById(pid);
             if (!product) {
                 return res.status(404).json({
@@ -67,6 +158,7 @@ export class CartController {
                 });
             }
 
+            // Verificar stock
             if (product.stock < quantity) {
                 return res.status(400).json({
                     status: 'error',
@@ -74,7 +166,8 @@ export class CartController {
                 });
             }
 
-            const cart = await CartModel.findById(cid);
+            // Buscar carrito
+            const cart = await CartModel.findById(cartId);
             if (!cart) {
                 return res.status(404).json({
                     status: 'error',
@@ -82,33 +175,35 @@ export class CartController {
                 });
             }
 
-            // Buscar si el producto ya está en el carrito
+            // Verificar si el producto ya está en el carrito
             const productIndex = cart.products.findIndex(
                 item => item.product.toString() === pid
             );
 
-            if (productIndex === -1) {
-                cart.products.push({ product: pid, quantity });
-            } else {
+            if (productIndex !== -1) {
+                // Actualizar cantidad
                 cart.products[productIndex].quantity += quantity;
+            } else {
+                // Agregar producto
+                cart.products.push({
+                    product: pid,
+                    quantity
+                });
             }
 
             await cart.save();
 
-            // Actualizar el stock del producto
-            product.stock -= quantity;
-            await product.save();
-
             // Emitir evento de Socket.IO para actualización en tiempo real
             req.app.get('io').emit('cartUpdated', cart);
-            req.app.get('io').emit('productUpdated', product);
 
             res.json({
                 status: 'success',
+                message: 'Producto agregado al carrito',
                 payload: cart
             });
         } catch (error) {
-            res.status(400).json({
+            console.error('Error al agregar producto al carrito:', error);
+            res.status(500).json({
                 status: 'error',
                 message: error.message
             });
@@ -118,17 +213,41 @@ export class CartController {
     // Actualizar cantidad de un producto en el carrito
     static async updateProductQuantity(req, res) {
         try {
-            const { cid, pid } = req.params;
-            const { quantity } = req.body;
-
-            if (quantity < 1) {
-                return res.status(400).json({
-                    status: 'error',
-                    message: 'La cantidad debe ser mayor a 0'
-                });
+            // Obtener parámetros
+            const { pid } = req.params;
+            const { quantity, change } = req.body;
+            
+            // Si es una ruta con /current/, obtener el ID del usuario del token
+            let cartId;
+            if (req.path.includes('/current/')) {
+                // Verificar si el usuario está autenticado
+                if (!req.user || !req.user._id) {
+                    return res.status(401).json({
+                        status: 'error',
+                        message: 'Usuario no autenticado'
+                    });
+                }
+                
+                // Obtener el carrito activo del usuario
+                const userId = req.user._id;
+                let cart = await CartModel.findOne({ user: userId, status: 'active' });
+                
+                // Si no existe, crear uno nuevo
+                if (!cart) {
+                    cart = await CartModel.create({
+                        user: userId,
+                        products: []
+                    });
+                }
+                
+                cartId = cart._id;
+            } else {
+                // Ruta tradicional con ID de carrito
+                cartId = req.params.cid;
             }
 
-            const cart = await CartModel.findById(cid);
+            // Buscar carrito
+            const cart = await CartModel.findById(cartId).populate('products.product');
             if (!cart) {
                 return res.status(404).json({
                     status: 'error',
@@ -136,42 +255,67 @@ export class CartController {
                 });
             }
 
-            const productItem = cart.products.find(
-                item => item.product.toString() === pid
+            // Buscar producto en el carrito
+            const productIndex = cart.products.findIndex(
+                item => item.product._id.toString() === pid
             );
 
-            if (!productItem) {
+            if (productIndex === -1) {
                 return res.status(404).json({
                     status: 'error',
                     message: 'Producto no encontrado en el carrito'
                 });
             }
 
-            const product = await ProductModel.findById(pid);
-            const quantityDiff = quantity - productItem.quantity;
+            // Obtener producto y cantidad actual
+            const cartProduct = cart.products[productIndex];
+            const product = cartProduct.product;
+            let newQuantity;
 
-            if (quantityDiff > 0 && product.stock < quantityDiff) {
+            // Determinar nueva cantidad
+            if (quantity !== undefined) {
+                // Si se proporciona quantity, usar ese valor
+                newQuantity = parseInt(quantity);
+            } else if (change !== undefined) {
+                // Si se proporciona change, sumar/restar a la cantidad actual
+                newQuantity = cartProduct.quantity + parseInt(change);
+            } else {
                 return res.status(400).json({
                     status: 'error',
-                    message: 'Stock insuficiente'
+                    message: 'Debe proporcionar quantity o change'
                 });
             }
 
-            productItem.quantity = quantity;
-            product.stock -= quantityDiff;
+            // Validar nueva cantidad
+            if (newQuantity <= 0) {
+                // Si la cantidad es 0 o negativa, eliminar el producto
+                cart.products.splice(productIndex, 1);
+            } else {
+                // Verificar stock
+                if (product.stock < newQuantity) {
+                    return res.status(400).json({
+                        status: 'error',
+                        message: `Stock insuficiente. Disponible: ${product.stock}`
+                    });
+                }
 
-            await Promise.all([cart.save(), product.save()]);
+                // Actualizar cantidad
+                cart.products[productIndex].quantity = newQuantity;
+            }
+
+            await cart.save();
 
             // Emitir evento de Socket.IO para actualización en tiempo real
             req.app.get('io').emit('cartUpdated', cart);
-            req.app.get('io').emit('productUpdated', product);
 
             res.json({
                 status: 'success',
+                message: 'Cantidad actualizada',
                 payload: cart
             });
         } catch (error) {
-            res.status(400).json({
+            console.error('Error al actualizar cantidad:', error);
+            res.status(500).json({
                 status: 'error',
                 message: error.message
             });
@@ -181,9 +325,40 @@ export class CartController {
     // Eliminar un producto del carrito
     static async removeProductFromCart(req, res) {
         try {
-            const { cid, pid } = req.params;
+            // Obtener parámetros
+            const { pid } = req.params;
+            
+            // Si es una ruta con /current/, obtener el ID del usuario del token
+            let cartId;
+            if (req.path.includes('/current/')) {
+                // Verificar si el usuario está autenticado
+                if (!req.user || !req.user._id) {
+                    return res.status(401).json({
+                        status: 'error',
+                        message: 'Usuario no autenticado'
+                    });
+                }
+                
+                // Obtener el carrito activo del usuario
+                const userId = req.user._id;
+                let cart = await CartModel.findOne({ user: userId, status: 'active' });
+                
+                // Si no existe, crear uno nuevo
+                if (!cart) {
+                    cart = await CartModel.create({
+                        user: userId,
+                        products: []
+                    });
+                }
+                
+                cartId = cart._id;
+            } else {
+                // Ruta tradicional con ID de carrito
+                cartId = req.params.cid;
+            }
 
-            const cart = await CartModel.findById(cid);
+            // Buscar carrito
+            const cart = await CartModel.findById(cartId);
             if (!cart) {
                 return res.status(404).json({
                     status: 'error',
@@ -191,38 +366,33 @@ export class CartController {
                 });
             }
 
-            const productItem = cart.products.find(
+            // Buscar producto en el carrito
+            const productIndex = cart.products.findIndex(
                 item => item.product.toString() === pid
             );
 
-            if (!productItem) {
+            if (productIndex === -1) {
                 return res.status(404).json({
                     status: 'error',
                     message: 'Producto no encontrado en el carrito'
                 });
             }
 
-            // Restaurar el stock del producto
-            const product = await ProductModel.findById(pid);
-            product.stock += productItem.quantity;
-            await product.save();
-
-            // Eliminar el producto del carrito
-            cart.products = cart.products.filter(
-                item => item.product.toString() !== pid
-            );
+            // Eliminar producto
+            cart.products.splice(productIndex, 1);
             await cart.save();
 
             // Emitir evento de Socket.IO para actualización en tiempo real
             req.app.get('io').emit('cartUpdated', cart);
-            req.app.get('io').emit('productUpdated', product);
 
             res.json({
                 status: 'success',
+                message: 'Producto eliminado del carrito',
                 payload: cart
             });
         } catch (error) {
-            res.status(400).json({
+            console.error('Error al eliminar producto del carrito:', error);
+            res.status(500).json({
                 status: 'error',
                 message: error.message
             });
@@ -232,9 +402,37 @@ export class CartController {
     // Vaciar el carrito
     static async clearCart(req, res) {
         try {
-            const { cid } = req.params;
+            // Si es una ruta con /current, obtener el ID del usuario del token
+            let cartId;
+            if (req.path.includes('/current')) {
+                // Verificar si el usuario está autenticado
+                if (!req.user || !req.user._id) {
+                    return res.status(401).json({
+                        status: 'error',
+                        message: 'Usuario no autenticado'
+                    });
+                }
+                
+                // Obtener el carrito activo del usuario
+                const userId = req.user._id;
+                let cart = await CartModel.findOne({ user: userId, status: 'active' });
+                
+                // Si no existe, crear uno nuevo
+                if (!cart) {
+                    cart = await CartModel.create({
+                        user: userId,
+                        products: []
+                    });
+                }
+                
+                cartId = cart._id;
+            } else {
+                // Ruta tradicional con ID de carrito
+                cartId = req.params.cid;
+            }
 
-            const cart = await CartModel.findById(cid);
+            // Buscar carrito
+            const cart = await CartModel.findById(cartId);
             if (!cart) {
                 return res.status(404).json({
                     status: 'error',
@@ -242,13 +440,7 @@ export class CartController {
                 });
             }
 
-            // Restaurar el stock de todos los productos
-            await Promise.all(cart.products.map(async (item) => {
-                const product = await ProductModel.findById(item.product);
-                product.stock += item.quantity;
-                return product.save();
-            }));
-
+            // Vaciar carrito
             cart.products = [];
             await cart.save();
 
@@ -257,10 +449,12 @@ export class CartController {
 
             res.json({
                 status: 'success',
-                message: 'Carrito vaciado exitosamente'
+                message: 'Carrito vaciado',
+                payload: cart
             });
         } catch (error) {
-            res.status(400).json({
+            console.error('Error al vaciar el carrito:', error);
+            res.status(500).json({
                 status: 'error',
                 message: error.message
             });
@@ -270,62 +464,74 @@ export class CartController {
     // Finalizar compra
     static async checkoutCart(req, res) {
         try {
-            const { cid } = req.params;
-            const cart = await CartModel.findById(cid);
-
+            // Verificar si el usuario está autenticado
+            if (!req.user || !req.user._id) {
+                return res.status(401).json({
+                    status: 'error',
+                    message: 'Usuario no autenticado'
+                });
+            }
+            
+            const userId = req.user._id;
+            const cart = await CartModel.findOne({ user: userId, status: 'active' }).populate('products.product');
+            
             if (!cart) {
                 return res.status(404).json({
                     status: 'error',
                     message: 'Carrito no encontrado'
                 });
             }
-
-            // Verificar stock y actualizar productos
+            
+            if (cart.products.length === 0) {
+                return res.status(400).json({
+                    status: 'error',
+                    message: 'El carrito está vacío'
+                });
+            }
+            
+            // Verificar stock de productos
             for (const item of cart.products) {
-                const product = await ProductModel.findById(item.product);
-                
-                if (!product) {
-                    return res.status(404).json({
-                        status: 'error',
-                        message: `Producto ${item.product} no encontrado`
-                    });
-                }
-
+                const product = item.product;
                 if (product.stock < item.quantity) {
                     return res.status(400).json({
                         status: 'error',
-                        message: `Stock insuficiente para ${product.title}`
+                        message: `Stock insuficiente para ${product.title}. Disponible: ${product.stock}`
                     });
                 }
-
-                // Actualizar stock
+            }
+            
+            // Actualizar stock de productos
+            for (const item of cart.products) {
+                const product = item.product;
                 product.stock -= item.quantity;
                 await product.save();
             }
-
-            // Marcar el carrito como completado
+            
+            // Marcar carrito como completado
             cart.status = 'completed';
             cart.completedAt = new Date();
+            cart.user = userId; // Asegurar que el carrito esté asociado al usuario
             await cart.save();
-
-            // Crear un nuevo carrito vacío para el usuario
-            const newCart = await CartModel.create({ products: [] });
-            req.session.cartId = newCart._id;
-
-            // Emitir eventos de Socket.IO
-            req.app.get('io').emit('cartCompleted', cart);
-            cart.products.forEach(item => {
-                req.app.get('io').emit('productUpdated', item.product);
+            
+            // Crear un nuevo carrito activo para el usuario
+            const newCart = await CartModel.create({
+                user: userId,
+                products: []
             });
-
-            res.json({
+            
+            // Emitir evento de carrito actualizado
+            req.app.get('io').emit('cartUpdated', { products: [] });
+            
+            return res.status(200).json({
                 status: 'success',
-                message: 'Compra realizada exitosamente',
-                newCartId: newCart._id
+                message: 'Compra realizada con éxito',
+                payload: {
+                    cart: cart
+                }
             });
         } catch (error) {
-            console.error('Error en checkoutCart:', error);
-            res.status(500).json({
+            console.error('Error en checkout:', error);
+            return res.status(500).json({
                 status: 'error',
                 message: 'Error al procesar la compra'
             });

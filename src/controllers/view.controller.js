@@ -148,4 +148,25 @@ export class ViewController {
             });
         }
     }
+
+    // Vista de login
+    static renderLogin(req, res) {
+        res.render('login', {
+            title: 'Iniciar Sesión'
+        });
+    }
+
+    // Vista de registro
+    static renderRegister(req, res) {
+        res.render('register', {
+            title: 'Crear Cuenta'
+        });
+    }
+
+    // Vista de perfil
+    static renderProfile(req, res) {
+        res.render('profile', {
+            title: 'Mi Perfil'
+        });
+    }
 } 

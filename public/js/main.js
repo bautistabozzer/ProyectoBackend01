@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const socket = io();
+    // Usar la variable socket global inicializada en el layout principal
+    // const socket = io(); // Esta línea se elimina
 
     // Función para mostrar notificaciones
     const showToast = (message, type = 'success') => {
@@ -37,6 +38,67 @@ document.addEventListener('DOMContentLoaded', () => {
             style: 'currency',
             currency: 'ARS'
         }).format(price);
+    };
+
+    // Función para obtener el token JWT
+    const getToken = () => {
+        return localStorage.getItem('token');
+    };
+
+    // Función para verificar si el usuario está autenticado
+    const isAuthenticated = () => {
+        return !!getToken();
+    };
+
+    // Función para realizar peticiones autenticadas
+    const fetchWithAuth = async (url, options = {}) => {
+        const token = getToken();
+        if (!token) {
+            console.error('No hay token disponible para la solicitud autenticada');
+            window.location.href = '/login';
+            return null;
+        }
+        
+        // Asegurar que headers existe
+        if (!options.headers) {
+            options.headers = {};
+        }
+        
+        // Añadir token de autorización
+        options.headers['Authorization'] = `Bearer ${token}`;
+        
+        try {
+            console.log(`Enviando solicitud autenticada a ${url}`);
+            const response = await fetch(url, options);
+            
+            if (response.status === 401) {
+                console.error('Token expirado o inválido');
+                localStorage.removeItem('token');
+                window.location.href = '/login';
+                return null;
+            }
+            
+            return response;
+        } catch (error) {
+            console.error('Error en fetchWithAuth:', error);
+            return null;
+        }
+    };
+
+    // Cargar datos del carrito al iniciar
+    const loadCartCount = async () => {
+        try {
+            if (isAuthenticated()) {
+                const response = await fetchWithAuth('/api/carts/current');
+                if (response.ok) {
+                    const result = await response.json();
+                    const totalProducts = result.payload.cart.products.reduce((total, item) => total + item.quantity, 0);
+                    updateCartCount(totalProducts);
+                }
+            }
+        } catch (error) {
+            console.error('Error al cargar el carrito:', error);
+        }
     };
 
     // Manejar eventos de Socket.IO
@@ -138,4 +200,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+
+    // Exponer funciones útiles globalmente
+    window.multishop = {
+        showToast,
+        updateCartCount,
+        formatPrice,
+        getToken,
+        isAuthenticated,
+        fetchWithAuth
+    };
+
+    // Cargar datos iniciales
+    loadCartCount();
 }); 

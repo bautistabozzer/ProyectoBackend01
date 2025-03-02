@@ -1,0 +1,96 @@
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow">
+            <div class="card-body">
+                <h2 class="card-title text-center mb-4">Crear Cuenta</h2>
+                <form id="register-form">
+                    <div class="row mb-3">
+                        <div class="col">
+                            <label for="firstName" class="form-label">Nombre</label>
+                            <input type="text" class="form-control" id="firstName" name="firstName" required>
+                        </div>
+                        <div class="col">
+                            <label for="lastName" class="form-label">Apellido</label>
+                            <input type="text" class="form-control" id="lastName" name="lastName" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Correo Electrónico</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Contraseña</label>
+                        <input type="password" class="form-control" id="password" name="password" required minlength="6">
+                        <div class="form-text">La contraseña debe tener al menos 6 caracteres.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirmPassword" class="form-label">Confirmar Contraseña</label>
+                        <input type="password" class="form-control" id="confirmPassword" name="confirmPassword" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="adminCode" class="form-label">Código de Administrador (opcional)</label>
+                        <input type="password" class="form-control" id="adminCode" name="adminCode" placeholder="Solo si deseas crear una cuenta de administrador">
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">Registrarse</button>
+                    </div>
+                    <div class="alert alert-danger mt-3" id="register-error" style="display: none;"></div>
+                </form>
+                <div class="text-center mt-3">
+                    <p>¿Ya tienes una cuenta? <a href="/login">Iniciar Sesión</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const registerForm = document.getElementById('register-form');
+        const registerError = document.getElementById('register-error');
+
+        registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const firstName = document.getElementById('firstName').value;
+            const lastName = document.getElementById('lastName').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const adminCode = document.getElementById('adminCode').value;
+
+            // Validar que las contraseñas coincidan
+            if (password !== confirmPassword) {
+                registerError.textContent = 'Las contraseñas no coinciden';
+                registerError.style.display = 'block';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/sessions/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ firstName, lastName, email, password, adminCode })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Guardar token en localStorage
+                    localStorage.setItem('token', result.payload.token);
+                    
+                    // Redirigir a la página principal
+                    window.location.href = '/';
+                } else {
+                    registerError.textContent = result.message;
+                    registerError.style.display = 'block';
+                }
+            } catch (error) {
+                registerError.textContent = 'Error al registrarse. Inténtalo de nuevo.';
+                registerError.style.display = 'block';
+            }
+        });
+    });
+</script> 

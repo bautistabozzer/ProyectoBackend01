@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { ProductController } from '../controllers/product.controller.js';
+import { authenticateJWT, isAdmin } from '../config/passport.config.js';
 
 const router = Router();
 
@@ -9,13 +10,13 @@ router.get('/', ProductController.getProducts);
 // Obtener un producto por ID
 router.get('/:pid', ProductController.getProductById);
 
-// Crear un nuevo producto
-router.post('/', ProductController.createProduct);
+// Crear un nuevo producto (solo admin)
+router.post('/', authenticateJWT, isAdmin, ProductController.createProduct);
 
-// Actualizar un producto
-router.put('/:pid', ProductController.updateProduct);
+// Actualizar un producto (solo admin)
+router.put('/:pid', authenticateJWT, isAdmin, ProductController.updateProduct);
 
-// Eliminar un producto
-router.delete('/:pid', ProductController.deleteProduct);
+// Eliminar un producto (solo admin)
+router.delete('/:pid', authenticateJWT, isAdmin, ProductController.deleteProduct);
 
 export default router; 
