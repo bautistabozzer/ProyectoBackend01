@@ -1,0 +1,352 @@
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2>Gestión de Usuarios</h2>
+            <div>
+                <a href="/admin" class="btn btn-outline-primary" id="admin-link">
+                    <i class="bi bi-box-seam"></i> Gestión de Productos
+                </a>
+            </div>
+        </div>
+        <hr>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Usuarios Registrados</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Usuario</th>
+                                <th>Email</th>
+                                <th>Rol</th>
+                                <th>Última Conexión</th>
+                                <th>Fecha Registro</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{#each users.docs}}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px;">
+                                            <span>{{firstChar firstName}}{{firstChar lastName}}</span>
+                                        </div>
+                                        <div>
+                                            <h6 class="mb-0">{{firstName}} {{lastName}}</h6>
+                                            <small class="text-muted">ID: {{_id}}</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>{{email}}</td>
+                                <td>
+                                    <span class="badge {{#if (eq role 'admin')}}bg-danger{{else}}bg-info{{/if}}">
+                                        {{role}}
+                                    </span>
+                                </td>
+                                <td>{{formatDate lastConnection}}</td>
+                                <td>{{formatDate createdAt}}</td>
+                                <td>
+                                    <button class="btn btn-primary btn-sm view-purchases" data-user-id="{{_id}}" data-user-name="{{firstName}} {{lastName}}">
+                                        <i class="bi bi-bag"></i> Ver Compras
+                                    </button>
+                                    <button class="btn btn-warning btn-sm change-role" data-user-id="{{_id}}" data-user-role="{{role}}">
+                                        <i class="bi bi-person-gear"></i> Cambiar Rol
+                                    </button>
+                                </td>
+                            </tr>
+                            {{/each}}
+                        </tbody>
+                    </table>
+                </div>
+
+                {{#if users.totalPages}}
+                <nav class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        {{#if users.hasPrevPage}}
+                        <li class="page-item">
+                            <a class="page-link pagination-link" href="/users?page={{users.prevPage}}">Anterior</a>
+                        </li>
+                        {{/if}}
+                        
+                        {{#each (range 1 users.totalPages)}}
+                        <li class="page-item {{#if (eq this ../users.page)}}active{{/if}}">
+                            <a class="page-link pagination-link" href="/users?page={{this}}">{{this}}</a>
+                        </li>
+                        {{/each}}
+
+                        {{#if users.hasNextPage}}
+                        <li class="page-item">
+                            <a class="page-link pagination-link" href="/users?page={{users.nextPage}}">Siguiente</a>
+                        </li>
+                        {{/if}}
+                    </ul>
+                </nav>
+                {{/if}}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Compras del Usuario -->
+<div class="modal fade" id="purchasesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Compras de <span id="user-name-modal"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="purchases-loading" class="text-center py-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                    <p class="mt-2">Cargando historial de compras...</p>
+                </div>
+                <div id="purchases-content" style="display: none;">
+                    <!-- Aquí se cargarán las compras -->
+                </div>
+                <div id="no-purchases-message" class="alert alert-info" style="display: none;">
+                    Este usuario no tiene compras registradas.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Cambio de Rol -->
+<div class="modal fade" id="changeRoleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Cambiar Rol de Usuario</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>¿Estás seguro de que deseas cambiar el rol de este usuario?</p>
+                <input type="hidden" id="user-id-role">
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="role" id="role-user" value="user">
+                    <label class="form-check-label" for="role-user">
+                        Usuario
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="role" id="role-admin" value="admin">
+                    <label class="form-check-label" for="role-admin">
+                        Administrador
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="save-role">Guardar Cambios</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', async () => {
+        const token = localStorage.getItem('token');
+        
+        if (!token) {
+            console.error('No hay token disponible, redirigiendo a login');
+            window.location.href = '/login';
+            return;
+        }
+        
+        try {
+            // Verificar que el usuario sea administrador
+            const response = await fetch('/api/sessions/current', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (!response.ok) {
+                console.error('Error al verificar usuario:', response.status, response.statusText);
+                throw new Error('No autorizado');
+            }
+            
+            const result = await response.json();
+            const user = result.payload;
+            
+            if (user.role !== 'admin') {
+                console.error('Usuario no es administrador:', user.role);
+                window.location.href = '/';
+                return;
+            }
+            
+            console.log('Usuario administrador verificado:', user.email);
+            
+            // Inicializar modales
+            const purchasesModal = new bootstrap.Modal(document.getElementById('purchasesModal'));
+            const changeRoleModal = new bootstrap.Modal(document.getElementById('changeRoleModal'));
+            
+            // Actualizar enlace al panel de administración con el token
+            const adminLink = document.getElementById('admin-link');
+            if (adminLink && token) {
+                adminLink.href = `/admin?token=${token}`;
+            }
+            
+            // Ver compras de un usuario
+            document.querySelectorAll('.view-purchases').forEach(button => {
+                button.addEventListener('click', async () => {
+                    const userId = button.dataset.userId;
+                    const userName = button.dataset.userName;
+                    
+                    document.getElementById('user-name-modal').textContent = userName;
+                    document.getElementById('purchases-loading').style.display = 'block';
+                    document.getElementById('purchases-content').style.display = 'none';
+                    document.getElementById('no-purchases-message').style.display = 'none';
+                    
+                    purchasesModal.show();
+                    
+                    try {
+                        const response = await fetch(`/api/sessions/purchase-history/${userId}`, {
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error('Error al obtener compras');
+                        }
+                        
+                        const result = await response.json();
+                        const purchases = result.payload;
+                        
+                        document.getElementById('purchases-loading').style.display = 'none';
+                        
+                        if (purchases.length === 0) {
+                            document.getElementById('no-purchases-message').style.display = 'block';
+                            return;
+                        }
+                        
+                        const purchasesContent = document.getElementById('purchases-content');
+                        purchasesContent.style.display = 'block';
+                        
+                        let purchasesHTML = '';
+                        
+                        purchases.forEach((purchase, index) => {
+                            const date = new Date(purchase.completedAt).toLocaleString();
+                            const total = purchase.products.reduce((sum, item) => {
+                                const price = item.product.onSale ? item.product.finalPrice : item.product.price;
+                                return sum + (price * item.quantity);
+                            }, 0);
+                            
+                            purchasesHTML += `
+                            <div class="card mb-3">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <span>Compra #${index + 1}</span>
+                                    <span class="text-muted">${date}</span>
+                                </div>
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-3">Productos:</h6>
+                                    <ul class="list-group mb-3">
+                            `;
+                            
+                            purchase.products.forEach(item => {
+                                const price = item.product.onSale ? item.product.finalPrice : item.product.price;
+                                purchasesHTML += `
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-0">${item.product.title}</h6>
+                                        <small class="text-muted">Cantidad: ${item.quantity}</small>
+                                    </div>
+                                    <span>$${price.toFixed(2)} c/u</span>
+                                </li>
+                                `;
+                            });
+                            
+                            purchasesHTML += `
+                                    </ul>
+                                    <div class="text-end">
+                                        <h5>Total: $${total.toFixed(2)}</h5>
+                                    </div>
+                                </div>
+                            </div>
+                            `;
+                        });
+                        
+                        purchasesContent.innerHTML = purchasesHTML;
+                        
+                    } catch (error) {
+                        console.error('Error al cargar compras:', error);
+                        document.getElementById('purchases-loading').style.display = 'none';
+                        document.getElementById('no-purchases-message').style.display = 'block';
+                        document.getElementById('no-purchases-message').textContent = 'Error al cargar las compras del usuario.';
+                        document.getElementById('no-purchases-message').className = 'alert alert-danger';
+                    }
+                });
+            });
+            
+            // Cambiar rol de usuario
+            document.querySelectorAll('.change-role').forEach(button => {
+                button.addEventListener('click', () => {
+                    const userId = button.dataset.userId;
+                    const userRole = button.dataset.userRole;
+                    
+                    document.getElementById('user-id-role').value = userId;
+                    
+                    if (userRole === 'admin') {
+                        document.getElementById('role-admin').checked = true;
+                    } else {
+                        document.getElementById('role-user').checked = true;
+                    }
+                    
+                    changeRoleModal.show();
+                });
+            });
+            
+            // Guardar cambio de rol
+            document.getElementById('save-role').addEventListener('click', async () => {
+                const userId = document.getElementById('user-id-role').value;
+                const role = document.querySelector('input[name="role"]:checked').value;
+                
+                try {
+                    const response = await fetch(`/api/sessions/users/${userId}/role`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ role })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Error al cambiar rol');
+                    }
+                    
+                    changeRoleModal.hide();
+                    window.location.reload();
+                    
+                } catch (error) {
+                    console.error('Error al cambiar rol:', error);
+                    alert('Error al cambiar el rol del usuario');
+                }
+            });
+            
+            // Actualizar enlaces de paginación con el token
+            document.querySelectorAll('.pagination-link').forEach(link => {
+                if (token) {
+                    const currentHref = link.getAttribute('href');
+                    link.setAttribute('href', `${currentHref}&token=${token}`);
+                }
+            });
+            
+        } catch (error) {
+            console.error('Error:', error);
+            window.location.href = '/login';
+        }
+    });
+</script> 

@@ -44,10 +44,13 @@ export const helpers = {
 
     // Formatear fecha
     formatDate: (date) => {
-        return new Date(date).toLocaleDateString('es-AR', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
+        if (!date) return 'N/A';
+        return new Date(date).toLocaleString();
+    },
+
+    // Obtener el primer carácter de un string
+    firstChar: (str) => {
+        if (!str) return '';
+        return str.charAt(0).toUpperCase();
     }
 }; 

@@ -1,4 +1,15 @@
 <div class="row">
+    <div class="col-12 mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2>Panel de Administración</h2>
+            <div>
+                <a href="/users" class="btn btn-outline-primary" id="users-management-link">
+                    <i class="bi bi-people"></i> Gestión de Usuarios
+                </a>
+            </div>
+        </div>
+        <hr>
+    </div>
     <div class="col-md-4">
         <div class="card">
             <div class="card-body">
@@ -347,6 +358,12 @@
             socket.on('productCreated', () => window.location.reload());
             socket.on('productUpdated', () => window.location.reload());
             socket.on('productDeleted', () => window.location.reload());
+
+            // Actualizar enlace a gestión de usuarios con el token
+            const usersLink = document.getElementById('users-management-link');
+            if (usersLink && token) {
+                usersLink.href = `/users?token=${token}`;
+            }
         } catch (error) {
             console.error('Error:', error);
         }

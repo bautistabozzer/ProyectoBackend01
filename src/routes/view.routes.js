@@ -28,6 +28,9 @@ router.get('/cart', ViewController.renderCart);
 // Panel de administración (solo admin)
 router.get('/admin', authenticateJWT, isAdmin, ViewController.renderAdmin);
 
+// Rutas protegidas para administradores
+router.get('/users', authenticateJWT, isAdmin, ViewController.renderUserManagement);
+
 // Autenticación
 router.get('/login', ViewController.renderLogin);
 router.get('/register', ViewController.renderRegister);

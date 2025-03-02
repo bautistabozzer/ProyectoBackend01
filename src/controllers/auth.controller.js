@@ -193,4 +193,100 @@ export class AuthController {
             });
         }
     }
+
+    static async getUserPurchaseHistory(req, res) {
+        try {
+            const { userId } = req.params;
+            
+            // Verificar que el usuario solicitante sea administrador
+            if (req.user.role !== 'admin') {
+                return res.status(403).json({
+                    status: 'error',
+                    message: 'No tienes permisos para ver el historial de compras de otros usuarios'
+                });
+            }
+            
+            // Buscar el usuario
+            const user = await UserModel.findById(userId);
+            if (!user) {
+                return res.status(404).json({
+                    status: 'error',
+                    message: 'Usuario no encontrado'
+                });
+            }
+            
+            // Buscar las compras completadas del usuario
+            const purchases = await CartModel.find({
+                user: userId,
+                status: 'completed'
+            }).populate({
+                path: 'products.product',
+                select: 'title price finalPrice onSale thumbnails'
+            }).sort({ completedAt: -1 }).lean();
+            
+            return res.status(200).json({
+                status: 'success',
+                payload: purchases
+            });
+        } catch (error) {
+            console.error('Error al obtener historial de compras del usuario:', error);
+            return res.status(500).json({
+                status: 'error',
+                message: 'Error al obtener historial de compras'
+            });
+        }
+    }
+    
+    static async changeUserRole(req, res) {
+        try {
+            const { userId } = req.params;
+            const { role } = req.body;
+            
+            // Verificar que el usuario solicitante sea administrador
+            if (req.user.role !== 'admin') {
+                return res.status(403).json({
+                    status: 'error',
+                    message: 'No tienes permisos para cambiar el rol de otros usuarios'
+                });
+            }
+            
+            // Verificar que el rol sea válido
+            if (role !== 'user' && role !== 'admin') {
+                return res.status(400).json({
+                    status: 'error',
+                    message: 'Rol no válido'
+                });
+            }
+            
+            // Buscar y actualizar el usuario
+            const updatedUser = await UserModel.findByIdAndUpdate(
+                userId,
+                { role },
+                { new: true }
+            );
+            
+            if (!updatedUser) {
+                return res.status(404).json({
+                    status: 'error',
+                    message: 'Usuario no encontrado'
+                });
+            }
+            
+            return res.status(200).json({
+                status: 'success',
+                message: 'Rol actualizado correctamente',
+                payload: {
+                    id: updatedUser._id,
+                    email: updatedUser.email,
+                    role: updatedUser.role
+                }
+            });
+        } catch (error) {
+            console.error('Error al cambiar el rol del usuario:', error);
+            return res.status(500).json({
+                status: 'error',
+                message: 'Error al cambiar el rol del usuario'
+            });
+        }
+    }
 } 

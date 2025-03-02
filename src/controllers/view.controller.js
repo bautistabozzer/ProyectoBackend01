@@ -1,5 +1,6 @@
 import { ProductModel } from '../models/product.model.js';
 import { CartModel } from '../models/cart.model.js';
+import { UserModel } from '../models/user.model.js';
 
 export class ViewController {
     // Vista principal con listado de productos
@@ -168,5 +169,39 @@ export class ViewController {
         res.render('profile', {
             title: 'Mi Perfil'
         });
+    }
+
+    static async renderUserManagement(req, res) {
+        try {
+            console.log('Iniciando renderUserManagement');
+            console.log('Usuario autenticado:', req.user.email, 'Rol:', req.user.role);
+            
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 10;
+            
+            console.log('Parámetros de paginación:', { page, limit });
+            
+            console.log('Consultando usuarios con paginación...');
+            const users = await UserModel.paginate({}, { 
+                page, 
+                limit,
+                lean: true,
+                sort: { createdAt: -1 }
+            });
+            
+            console.log('Usuarios obtenidos:', users.docs.length);
+            console.log('Total de páginas:', users.totalPages);
+            
+            res.render('user-management', { 
+                title: 'Gestión de Usuarios',
+                users,
+                page
+            });
+        } catch (error) {
+            console.error('Error al renderizar la página de gestión de usuarios:', error);
+            res.status(500).render('error', { 
+                message: 'Error al cargar la página de gestión de usuarios' 
+            });
+        }
     }
 } 
