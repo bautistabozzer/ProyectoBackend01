@@ -17,7 +17,9 @@ export const generateToken = (user) => {
         email: user.email,
         role: user.role,
         firstName: user.firstName,
-        lastName: user.lastName
+        lastName: user.lastName,
+        cart: user.cart,
+        lastConnection: user.lastConnection
     };
     
     console.log('Generando token JWT para:', user.email, 'Rol:', user.role);

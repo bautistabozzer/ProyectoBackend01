@@ -194,4 +194,11 @@ export class ViewController {
             title: 'Gestión de Carritos'
         });
     }
+
+    // Vista de gestión de tickets
+    static renderTicketManagement(req, res) {
+        res.render('ticket-management', {
+            title: 'Gestión de Tickets'
+        });
+    }
 } 

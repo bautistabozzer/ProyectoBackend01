@@ -113,7 +113,6 @@ export class AuthController {
     // Obtener usuario actual
     static async getCurrentUser(req, res) {
         try {
-            // El middleware de Passport ya ha verificado el token y ha añadido el usuario a req.user
             if (!req.user) {
                 console.error('getCurrentUser - No hay usuario en la solicitud');
                 return res.status(401).json({
@@ -122,11 +121,32 @@ export class AuthController {
                 });
             }
             
-            console.log('getCurrentUser - Usuario autenticado:', req.user.email, 'Rol:', req.user.role);
+            // Asegurar que tenemos toda la información del usuario
+            const user = await UserModel.findById(req.user._id)
+                .select('-password')
+                .populate('cart');
+                
+            if (!user) {
+                return res.status(404).json({
+                    status: 'error',
+                    message: 'Usuario no encontrado'
+                });
+            }
+            
+            console.log('getCurrentUser - Usuario autenticado:', user.email, 'Rol:', user.role);
             
             res.json({
                 status: 'success',
-                payload: req.user
+                payload: {
+                    id: user._id,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    email: user.email,
+                    role: user.role,
+                    cart: user.cart,
+                    lastConnection: user.lastConnection,
+                    createdAt: user.createdAt
+                }
             });
         } catch (error) {
             console.error('Error en getCurrentUser:', error);
@@ -149,11 +169,23 @@ export class AuthController {
             // Destruir la sesión
             req.session.destroy(err => {
                 if (err) {
+                    console.error('Error al destruir la sesión:', err);
                     return res.status(500).json({
                         status: 'error',
                         message: 'Error al cerrar sesión'
                     });
                 }
+
+                // Limpiar la cookie de sesión
+                res.clearCookie('connect.sid');
+                
+                // Invalidar el token JWT enviando una cookie con expiración inmediata
+                res.cookie('token', '', {
+                    expires: new Date(0),
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: 'strict'
+                });
 
                 res.json({
                     status: 'success',
@@ -161,6 +193,7 @@ export class AuthController {
                 });
             });
         } catch (error) {
+            console.error('Error en logout:', error);
             res.status(500).json({
                 status: 'error',
                 message: error.message

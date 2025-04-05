@@ -96,18 +96,38 @@
             const token = localStorage.getItem('token');
             const authDropdown = document.querySelector('.auth-dropdown');
             const authButtons = document.querySelector('.auth-buttons');
-            const adminLink = document.querySelector('.admin-link');
+            const adminLinks = document.querySelectorAll('.admin-link');
             const logoutLink = document.getElementById('logout-link');
             
-            // Función para añadir token a los enlaces protegidos
+            // Función para actualizar la información del usuario en la interfaz
+            const updateUserInterface = (user) => {
+                // Mostrar nombre completo del usuario
+                const userNameNav = document.getElementById('user-name-nav');
+                if (userNameNav) {
+                    userNameNav.textContent = `${user.firstName} ${user.lastName}`;
+                }
+                
+                // Mostrar/ocultar elementos según el rol
+                if (user.role === 'admin') {
+                    adminLinks.forEach(link => link.style.display = 'block');
+                } else {
+                    adminLinks.forEach(link => link.style.display = 'none');
+                }
+                
+                // Mostrar menú de usuario y ocultar botones de auth
+                authDropdown.style.display = 'block';
+                authButtons.style.display = 'none';
+            };
+            
+            // Función para actualizar enlaces protegidos
             const updateProtectedLinks = (token) => {
                 if (!token) return;
-                
-                // Actualizar enlaces protegidos
-                const protectedLinks = document.querySelectorAll('a[href="/admin"], a[href="/profile"]');
+                const protectedLinks = document.querySelectorAll('a[href^="/admin"], a[href="/profile"], a[href="/users"], a[href="/cart-management"]');
                 protectedLinks.forEach(link => {
                     const currentHref = link.getAttribute('href');
-                    link.setAttribute('href', `${currentHref}?token=${token}`);
+                    if (!currentHref.includes('token=')) {
+                        link.setAttribute('href', `${currentHref}${currentHref.includes('?') ? '&' : '?'}token=${token}`);
+                    }
                 });
             };
             
@@ -126,21 +146,8 @@
                         
                         console.log('Usuario autenticado:', user.email, 'Rol:', user.role);
                         
-                        // Mostrar menú de usuario
-                        authDropdown.style.display = 'block';
-                        authButtons.style.display = 'none';
-                        
-                        // Mostrar nombre de usuario
-                        document.getElementById('user-name-nav').textContent = user.firstName;
-                        
-                        // Mostrar enlace de admin si corresponde
-                        if (user.role === 'admin') {
-                            console.log('Mostrando enlace de admin');
-                            adminLink.style.display = 'block';
-                        } else {
-                            console.log('Usuario no es admin, ocultando enlace');
-                            adminLink.style.display = 'none';
-                        }
+                        // Actualizar interfaz con datos del usuario
+                        updateUserInterface(user);
                         
                         // Actualizar enlaces protegidos
                         updateProtectedLinks(token);
@@ -156,7 +163,16 @@
                                     }
                                 });
                                 
-                                localStorage.removeItem('token');
+                                // Limpiar todos los datos locales
+                                localStorage.clear();
+                                sessionStorage.clear();
+                                
+                                // Limpiar todas las cookies
+                                document.cookie.split(";").forEach(function(c) { 
+                                    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+                                });
+                                
+                                // Recargar la página para asegurar que todo se reinicie
                                 window.location.href = '/login';
                             } catch (error) {
                                 console.error('Error al cerrar sesión:', error);
@@ -168,6 +184,7 @@
                         localStorage.removeItem('token');
                         authDropdown.style.display = 'none';
                         authButtons.style.display = 'flex';
+                        window.location.href = '/login';
                     }
                 } catch (error) {
                     console.error('Error al verificar sesión:', error);

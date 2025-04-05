@@ -108,10 +108,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             const data = await response.json();
             const carts = data.payload.carts;
 
-            // Filtrar carritos sin usuario
-            const validCarts = carts.filter(cart => cart.user);
+            // Limpiar carritos sin usuario automáticamente
+            const orphanedCarts = carts.filter(cart => !cart.user);
+            if (orphanedCarts.length > 0) {
+                console.log(`Eliminando ${orphanedCarts.length} carritos sin usuario...`);
+                for (const cart of orphanedCarts) {
+                    await clearCart(cart._id, false);
+                }
+            }
 
+            // Filtrar y mostrar solo carritos con usuario
+            const validCarts = carts.filter(cart => cart.user);
             let html = '';
+
             for (const cart of validCarts) {
                 const user = cart.user ? `${cart.user.firstName} ${cart.user.lastName}` : 'N/A';
                 const total = cart.products.reduce((sum, item) => {
@@ -123,34 +132,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 html += `
                     <tr>
-                        <td>${user}</td>
-                        <td>${productCount} items</td>
-                        <td>$${total.toFixed(2)}</td>
                         <td>
-                            <span class="badge ${cart.status === 'active' ? 'bg-success' : 'bg-secondary'}">
-                                ${cart.status}
-                            </span>
+                            <div class="d-flex align-items-center">
+                                <div class="ms-2">
+                                    <h6 class="mb-0">${user}</h6>
+                                    <small class="text-muted">ID: ${cart._id}</small>
+                                </div>
+                            </div>
                         </td>
+                        <td>${productCount} productos</td>
+                        <td>$${total.toFixed(2)}</td>
+                        <td><span class="badge ${cart.status === 'active' ? 'bg-success' : 'bg-secondary'}">${cart.status}</span></td>
                         <td>${date}</td>
                         <td>
                             <button class="btn btn-info btn-sm view-cart" data-cart='${JSON.stringify(cart)}'>
-                                <i class="bi bi-eye"></i>
+                                <i class="bi bi-eye"></i> Ver
                             </button>
-                            <button class="btn btn-danger btn-sm clear-cart" data-cart-id="${cart._id}">
-                                <i class="bi bi-trash"></i>
+                            <button class="btn btn-danger btn-sm clear-cart" data-cart-id="${cart._id}" data-cart-user="${cart.user ? 'true' : ''}">
+                                <i class="bi bi-trash"></i> Eliminar
                             </button>
                         </td>
                     </tr>
                 `;
-            }
-
-            // Si hay carritos sin usuario, eliminarlos automáticamente
-            const invalidCarts = carts.filter(cart => !cart.user);
-            if (invalidCarts.length > 0) {
-                showToast(`Se encontraron ${invalidCarts.length} carritos sin usuario. Serán eliminados automáticamente.`, 'warning');
-                for (const cart of invalidCarts) {
-                    await clearCart(cart._id);
-                }
             }
 
             tableBody.innerHTML = html || `
@@ -170,7 +173,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
 
             document.querySelectorAll('.clear-cart').forEach(button => {
-                button.addEventListener('click', () => clearCart(button.dataset.cartId));
+                button.addEventListener('click', () => clearCart(button.dataset.cartId, button.dataset.cartUser === 'true'));
             });
 
         } catch (error) {
@@ -230,54 +233,50 @@ document.addEventListener('DOMContentLoaded', async () => {
         modal.show();
     }
 
-    async function clearCart(cartId) {
-        if (!confirm('¿Estás seguro de que deseas eliminar este carrito?')) {
-            return;
-        }
-
+    async function clearCart(cartId, hasUser) {
         try {
-            const response = await fetch(`/api/carts/${cartId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
+            // Si no tiene usuario, eliminar directamente sin confirmación
+            if (!hasUser) {
+                const response = await fetch(`/api/carts/${cartId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
 
-            if (!response.ok) {
-                throw new Error('Error al eliminar el carrito');
+                if (!response.ok) {
+                    throw new Error('Error al eliminar el carrito');
+                }
+
+                // Recargar la lista de carritos
+                await loadCarts();
+                return;
             }
 
-            // Recargar la lista de carritos
-            await loadCarts();
-            showToast('Carrito eliminado exitosamente', 'success');
+            // Si tiene usuario, pedir confirmación
+            if (confirm('¿Estás seguro de que deseas eliminar este carrito?')) {
+                const response = await fetch(`/api/carts/${cartId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Error al eliminar el carrito');
+                }
+
+                // Recargar la lista de carritos
+                await loadCarts();
+            }
         } catch (error) {
             console.error('Error:', error);
-            showToast('Error al eliminar el carrito', 'danger');
         }
     }
 
-    function showToast(message, type = 'success') {
-        const toastContainer = document.createElement('div');
-        toastContainer.className = 'toast';
-        toastContainer.innerHTML = `
-            <div class="toast-header bg-${type} text-white">
-                <strong class="me-auto">MultiShop</strong>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
-            </div>
-            <div class="toast-body">
-                ${message}
-            </div>
-        `;
-        document.body.appendChild(toastContainer);
-        const toast = new bootstrap.Toast(toastContainer);
-        toast.show();
-        toastContainer.addEventListener('hidden.bs.toast', () => {
-            toastContainer.remove();
-        });
-    }
-
-    // Cargar carritos inicialmente
     await loadCarts();
 });
-</script> 
+</script>
+</rewritten_file>
