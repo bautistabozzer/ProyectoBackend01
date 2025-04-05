@@ -187,4 +187,11 @@ export class ViewController {
             });
         }
     }
+
+    // Vista de gestión de carritos
+    static renderCartManagement(req, res) {
+        res.render('cart-management', {
+            title: 'Gestión de Carritos'
+        });
+    }
 } 

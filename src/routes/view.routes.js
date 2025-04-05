@@ -49,6 +49,7 @@ router.get('/cart', authenticateJWT, ViewController.renderCart);
 router.get('/admin', authenticateJWT, isAdmin, ViewController.renderAdmin);
 
 // Rutas protegidas para administradores
+router.get('/cart-management', authenticateJWT, isAdmin, ViewController.renderCartManagement);
 router.get('/users', authenticateJWT, isAdmin, ViewController.renderUserManagement);
 
 // Autenticación

@@ -25,4 +25,7 @@ router.get('/purchase-history/:userId', authenticateJWT, isAdmin, AuthController
 // Cambiar rol de usuario (solo admin)
 router.put('/users/:userId/role', authenticateJWT, isAdmin, AuthController.changeUserRole);
 
+// Eliminar usuario (solo admin)
+router.delete('/users/:userId', authenticateJWT, isAdmin, AuthController.deleteUser);
+
 export default router; 

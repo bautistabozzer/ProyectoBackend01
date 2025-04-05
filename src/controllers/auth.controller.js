@@ -289,4 +289,58 @@ export class AuthController {
             });
         }
     }
+
+    // Eliminar usuario
+    static async deleteUser(req, res) {
+        try {
+            const { userId } = req.params;
+            
+            // Verificar que el usuario solicitante sea administrador
+            if (req.user.role !== 'admin') {
+                return res.status(403).json({
+                    status: 'error',
+                    message: 'No tienes permisos para eliminar usuarios'
+                });
+            }
+            
+            // Verificar que el usuario exista
+            const user = await UserModel.findById(userId);
+            if (!user) {
+                return res.status(404).json({
+                    status: 'error',
+                    message: 'Usuario no encontrado'
+                });
+            }
+
+            // Verificar que el usuario no tenga compras
+            const purchases = await CartModel.find({
+                user: userId,
+                status: 'completed'
+            });
+
+            if (purchases.length > 0) {
+                return res.status(400).json({
+                    status: 'error',
+                    message: 'No se puede eliminar un usuario con compras registradas'
+                });
+            }
+
+            // Eliminar el carrito activo del usuario si existe
+            await CartModel.deleteMany({ user: userId });
+
+            // Eliminar el usuario
+            await UserModel.findByIdAndDelete(userId);
+            
+            return res.status(200).json({
+                status: 'success',
+                message: 'Usuario eliminado correctamente'
+            });
+        } catch (error) {
+            console.error('Error al eliminar usuario:', error);
+            return res.status(500).json({
+                status: 'error',
+                message: 'Error al eliminar el usuario'
+            });
+        }
+    }
 } 

@@ -1,7 +1,32 @@
 import { CartModel } from '../models/cart.model.js';
 import { ProductModel } from '../models/product.model.js';
+import { TicketService } from '../services/ticket.service.js';
 
 export class CartController {
+    static ticketService = new TicketService();
+
+    // Obtener todos los carritos (admin)
+    static async getAllCarts(req, res) {
+        try {
+            const carts = await CartModel.find()
+                .populate('user', 'email firstName lastName')
+                .populate('products.product');
+            
+            return res.status(200).json({
+                status: 'success',
+                payload: {
+                    carts
+                }
+            });
+        } catch (error) {
+            console.error('Error al obtener carritos:', error);
+            return res.status(500).json({
+                status: 'error',
+                message: 'Error al obtener los carritos'
+            });
+        }
+    }
+
     // Crear un nuevo carrito
     static async createCart(req, res) {
         try {
@@ -417,43 +442,50 @@ export class CartController {
                 const userId = req.user._id;
                 let cart = await CartModel.findOne({ user: userId, status: 'active' });
                 
-                // Si no existe, crear uno nuevo
                 if (!cart) {
-                    cart = await CartModel.create({
-                        user: userId,
-                        products: []
+                    return res.status(404).json({
+                        status: 'error',
+                        message: 'Carrito no encontrado'
                     });
                 }
                 
-                cartId = cart._id;
+                // Para usuarios normales, solo vaciar el carrito
+                cart.products = [];
+                await cart.save();
+                
+                // Emitir evento de Socket.IO para actualización en tiempo real
+                req.app.get('io').emit('cartUpdated', cart);
+                
+                return res.json({
+                    status: 'success',
+                    message: 'Carrito vaciado',
+                    payload: cart
+                });
             } else {
-                // Ruta tradicional con ID de carrito
+                // Ruta para administradores: eliminar el carrito completamente
                 cartId = req.params.cid;
-            }
+                
+                // Eliminar el carrito
+                const result = await CartModel.findByIdAndDelete(cartId);
+                
+                if (!result) {
+                    return res.status(404).json({
+                        status: 'error',
+                        message: 'Carrito no encontrado'
+                    });
+                }
 
-            // Buscar carrito
-            const cart = await CartModel.findById(cartId);
-            if (!cart) {
-                return res.status(404).json({
-                    status: 'error',
-                    message: 'Carrito no encontrado'
+                // Emitir evento de Socket.IO para actualización en tiempo real
+                req.app.get('io').emit('cartDeleted', cartId);
+
+                return res.json({
+                    status: 'success',
+                    message: 'Carrito eliminado',
+                    payload: result
                 });
             }
-
-            // Vaciar carrito
-            cart.products = [];
-            await cart.save();
-
-            // Emitir evento de Socket.IO para actualización en tiempo real
-            req.app.get('io').emit('cartUpdated', cart);
-
-            res.json({
-                status: 'success',
-                message: 'Carrito vaciado',
-                payload: cart
-            });
         } catch (error) {
-            console.error('Error al vaciar el carrito:', error);
+            console.error('Error al procesar el carrito:', error);
             res.status(500).json({
                 status: 'error',
                 message: error.message
@@ -534,6 +566,71 @@ export class CartController {
             return res.status(500).json({
                 status: 'error',
                 message: 'Error al procesar la compra'
+            });
+        }
+    }
+
+    // Método para realizar la compra del carrito
+    static async purchaseCart(req, res) {
+        try {
+            // Verificar usuario autenticado
+            if (!req.user || !req.user._id) {
+                return res.status(401).json({
+                    status: 'error',
+                    message: 'Usuario no autenticado'
+                });
+            }
+
+            // Obtener carrito activo del usuario
+            const cart = await CartModel.findOne({
+                user: req.user._id,
+                status: 'active'
+            }).populate('products.product');
+
+            if (!cart || cart.products.length === 0) {
+                return res.status(400).json({
+                    status: 'error',
+                    message: 'Carrito vacío o no encontrado'
+                });
+            }
+
+            // Procesar la compra
+            const result = await CartController.ticketService.createTicket(
+                cart.products,
+                req.user.email
+            );
+
+            // Si hay productos que no se pudieron comprar, actualizamos el carrito
+            if (result.failedProducts.length > 0) {
+                cart.products = cart.products.filter(item => 
+                    result.failedProducts.includes(item.product._id.toString())
+                );
+                await cart.save();
+            } else {
+                // Si todos los productos se compraron, crear nuevo carrito vacío
+                cart.status = 'completed';
+                await cart.save();
+                
+                await CartModel.create({
+                    user: req.user._id,
+                    products: []
+                });
+            }
+
+            // Responder con el resultado
+            res.json({
+                status: 'success',
+                message: 'Compra procesada',
+                payload: {
+                    ticket: result.ticket,
+                    failedProducts: result.failedProducts
+                }
+            });
+        } catch (error) {
+            console.error('Error en purchaseCart:', error);
+            res.status(500).json({
+                status: 'error',
+                message: error.message
             });
         }
     }

@@ -10,22 +10,23 @@
     "loadProducts": "node src/scripts/loadProducts.js"
   },
   "dependencies": {
+    "bcrypt": "^5.1.1",
+    "connect-mongo": "^5.1.0",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.1",
     "express": "^4.21.2",
     "express-handlebars": "^7.1.2",
     "express-session": "^1.17.3",
-    "socket.io": "^4.7.4",
+    "express-validator": "^7.0.1",
+    "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.1.0",
     "mongoose-paginate-v2": "^1.8.0",
-    "dotenv": "^16.4.1",
-    "cors": "^2.8.5",
-    "winston": "^3.11.0",
-    "cookie-parser": "^1.4.6",
-    "express-validator": "^7.0.1",
-    "connect-mongo": "^5.1.0",
-    "bcrypt": "^5.1.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
-    "jsonwebtoken": "^9.0.2"
+    "socket.io": "^4.7.4",
+    "uuid": "^11.1.0",
+    "winston": "^3.11.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

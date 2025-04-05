@@ -93,7 +93,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const userResponse = await fetchWithAuth('/api/sessions/current');
                 if (userResponse && userResponse.ok) {
                     const userData = await userResponse.json();
-                    const isAdmin = userData.payload.user.role === 'admin';
+                    // Verificar la estructura completa de la respuesta
+                    const isAdmin = userData?.payload?.role === 'admin' || 
+                                  userData?.payload?.user?.role === 'admin';
                     
                     // Si es admin, ocultar el contador del carrito
                     if (isAdmin) {
@@ -137,7 +139,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const userResponse = await fetchWithAuth('/api/sessions/current');
             if (userResponse && userResponse.ok) {
                 const userData = await userResponse.json();
-                const isAdmin = userData.payload.user.role === 'admin';
+                // Verificar la estructura completa de la respuesta
+                const isAdmin = userData?.payload?.role === 'admin' || 
+                              userData?.payload?.user?.role === 'admin';
                 
                 // Solo actualizar el contador si no es admin
                 if (!isAdmin) {

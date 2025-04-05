@@ -58,6 +58,9 @@
                                     <button class="btn btn-warning btn-sm change-role" data-user-id="{{_id}}" data-user-role="{{role}}">
                                         <i class="bi bi-person-gear"></i> Cambiar Rol
                                     </button>
+                                    <button class="btn btn-danger btn-sm delete-user" data-user-id="{{_id}}" data-user-name="{{firstName}} {{lastName}}">
+                                        <i class="bi bi-trash"></i> Eliminar
+                                    </button>
                                 </td>
                             </tr>
                             {{/each}}
@@ -334,6 +337,55 @@
                     console.error('Error al cambiar rol:', error);
                     alert('Error al cambiar el rol del usuario');
                 }
+            });
+            
+            // Eliminar usuario
+            document.querySelectorAll('.delete-user').forEach(button => {
+                button.addEventListener('click', async () => {
+                    const userId = button.dataset.userId;
+                    const userName = button.dataset.userName;
+
+                    // Primero verificar si el usuario tiene compras
+                    try {
+                        const response = await fetch(`/api/sessions/purchase-history/${userId}`, {
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+
+                        if (!response.ok) {
+                            throw new Error('Error al verificar compras del usuario');
+                        }
+
+                        const result = await response.json();
+                        const purchases = result.payload;
+
+                        if (purchases.length > 0) {
+                            alert('No se puede eliminar este usuario porque tiene compras registradas.');
+                            return;
+                        }
+
+                        // Si no tiene compras, confirmar eliminación
+                        if (confirm(`¿Estás seguro de que deseas eliminar al usuario ${userName}? Esta acción no se puede deshacer.`)) {
+                            const deleteResponse = await fetch(`/api/sessions/users/${userId}`, {
+                                method: 'DELETE',
+                                headers: {
+                                    'Authorization': `Bearer ${token}`
+                                }
+                            });
+
+                            if (!deleteResponse.ok) {
+                                throw new Error('Error al eliminar usuario');
+                            }
+
+                            // Recargar la página después de eliminar
+                            window.location.reload();
+                        }
+                    } catch (error) {
+                        console.error('Error:', error);
+                        alert('Error al procesar la solicitud');
+                    }
+                });
             });
             
             // Actualizar enlaces de paginación con el token
