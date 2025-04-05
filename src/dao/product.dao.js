@@ -1,88 +1,69 @@
-import { BaseDao } from './dao.interface.js';
+import { BaseDao } from './base.dao.js';
 import { ProductModel } from '../models/product.model.js';
 
 export class ProductDao extends BaseDao {
-    async getAll(options = {}) {
-        try {
-            return await ProductModel.paginate({}, options);
-        } catch (error) {
-            throw new Error(`Error al obtener productos: ${error.message}`);
-        }
+    constructor() {
+        super(ProductModel);
     }
 
-    async getById(id) {
+    async updateStock(productId, quantity) {
         try {
-            const product = await ProductModel.findById(id);
-            if (!product) {
-                throw new Error('Producto no encontrado');
-            }
-            return product;
-        } catch (error) {
-            throw new Error(`Error al obtener producto: ${error.message}`);
-        }
-    }
+            const product = await this.getById(productId);
+            if (!product) throw new Error('Producto no encontrado');
 
-    async create(productData) {
-        try {
-            return await ProductModel.create(productData);
-        } catch (error) {
-            throw new Error(`Error al crear producto: ${error.message}`);
-        }
-    }
+            if (product.stock < quantity) throw new Error('Stock insuficiente');
 
-    async update(id, productData) {
-        try {
-            const product = await ProductModel.findByIdAndUpdate(
-                id,
-                productData,
-                { new: true, runValidators: true }
-            );
-            if (!product) {
-                throw new Error('Producto no encontrado');
-            }
-            return product;
-        } catch (error) {
-            throw new Error(`Error al actualizar producto: ${error.message}`);
-        }
-    }
-
-    async delete(id) {
-        try {
-            const product = await ProductModel.findByIdAndDelete(id);
-            if (!product) {
-                throw new Error('Producto no encontrado');
-            }
-            return product;
-        } catch (error) {
-            throw new Error(`Error al eliminar producto: ${error.message}`);
-        }
-    }
-
-    // Métodos específicos para productos
-    async updateStock(id, quantity) {
-        try {
-            const product = await ProductModel.findById(id);
-            if (!product) {
-                throw new Error('Producto no encontrado');
-            }
-            
-            if (product.stock < quantity) {
-                throw new Error('Stock insuficiente');
-            }
-            
             product.stock -= quantity;
-            await product.save();
-            return product;
+            return await product.save();
         } catch (error) {
-            throw new Error(`Error al actualizar stock: ${error.message}`);
+            console.error('Error en ProductDao.updateStock:', error);
+            throw error;
         }
     }
 
-    async getByCategory(category) {
+    async getProductsByCategory(category) {
         try {
-            return await ProductModel.find({ category });
+            return await this.model.find({ category });
         } catch (error) {
-            throw new Error(`Error al obtener productos por categoría: ${error.message}`);
+            console.error('Error en ProductDao.getProductsByCategory:', error);
+            throw error;
+        }
+    }
+
+    async searchProducts(query) {
+        try {
+            return await this.model.find({
+                $or: [
+                    { title: { $regex: query, $options: 'i' } },
+                    { description: { $regex: query, $options: 'i' } },
+                    { category: { $regex: query, $options: 'i' } }
+                ]
+            });
+        } catch (error) {
+            console.error('Error en ProductDao.searchProducts:', error);
+            throw error;
+        }
+    }
+
+    async getProductsWithLowStock(threshold = 5) {
+        try {
+            return await this.model.find({ stock: { $lte: threshold } });
+        } catch (error) {
+            console.error('Error en ProductDao.getProductsWithLowStock:', error);
+            throw error;
+        }
+    }
+
+    async toggleProductStatus(productId) {
+        try {
+            const product = await this.getById(productId);
+            if (!product) throw new Error('Producto no encontrado');
+
+            product.status = !product.status;
+            return await product.save();
+        } catch (error) {
+            console.error('Error en ProductDao.toggleProductStatus:', error);
+            throw error;
         }
     }
 } 
