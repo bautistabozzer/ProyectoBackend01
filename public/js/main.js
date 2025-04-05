@@ -89,11 +89,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadCartCount = async () => {
         try {
             if (isAuthenticated()) {
-                const response = await fetchWithAuth('/api/carts/current');
-                if (response.ok) {
-                    const result = await response.json();
-                    const totalProducts = result.payload.cart.products.reduce((total, item) => total + item.quantity, 0);
-                    updateCartCount(totalProducts);
+                // Primero verificar si el usuario es admin
+                const userResponse = await fetchWithAuth('/api/sessions/current');
+                if (userResponse && userResponse.ok) {
+                    const userData = await userResponse.json();
+                    const isAdmin = userData.payload.user.role === 'admin';
+                    
+                    // Si es admin, ocultar el contador del carrito
+                    if (isAdmin) {
+                        const cartCount = document.getElementById('cart-count');
+                        if (cartCount) {
+                            cartCount.style.display = 'none';
+                        }
+                        return;
+                    }
+                    
+                    // Si no es admin, cargar el contador normalmente
+                    const response = await fetchWithAuth('/api/carts/current');
+                    if (response && response.ok) {
+                        const result = await response.json();
+                        const totalProducts = result.payload.cart.products.reduce((total, item) => total + item.quantity, 0);
+                        updateCartCount(totalProducts);
+                    }
                 }
             }
         } catch (error) {
@@ -114,10 +131,24 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('Producto eliminado exitosamente', 'danger');
     });
 
-    socket.on('cartUpdated', (cart) => {
-        const totalProducts = cart.products.reduce((total, item) => total + item.quantity, 0);
-        updateCartCount(totalProducts);
-        showToast('Carrito actualizado exitosamente');
+    socket.on('cartUpdated', async (cart) => {
+        // Verificar si el usuario es admin antes de actualizar el contador
+        try {
+            const userResponse = await fetchWithAuth('/api/sessions/current');
+            if (userResponse && userResponse.ok) {
+                const userData = await userResponse.json();
+                const isAdmin = userData.payload.user.role === 'admin';
+                
+                // Solo actualizar el contador si no es admin
+                if (!isAdmin) {
+                    const totalProducts = cart.products.reduce((total, item) => total + item.quantity, 0);
+                    updateCartCount(totalProducts);
+                    showToast('Carrito actualizado exitosamente');
+                }
+            }
+        } catch (error) {
+            console.error('Error al verificar rol de usuario:', error);
+        }
     });
 
     // Inicializar tooltips

@@ -88,35 +88,18 @@ export class ViewController {
     // Vista del carrito
     static async renderCart(req, res) {
         try {
-            // Crear carrito si no existe en la sesión
-            if (!req.session.cartId) {
-                const cart = await CartModel.create({ products: [] });
-                req.session.cartId = cart._id;
-            }
-
-            const cart = await CartModel.findById(req.session.cartId);
-            if (!cart) {
-                const newCart = await CartModel.create({ products: [] });
-                req.session.cartId = newCart._id;
+            // Si el usuario está autenticado y es admin, mostrar mensaje especial
+            if (req.user && req.user.role === 'admin') {
                 return res.render('cart', {
                     title: 'Mi Carrito',
-                    cart: newCart,
-                    total: 0,
-                    subtotal: 0,
-                    savings: 0
+                    isAdmin: true
                 });
             }
 
-            const total = await cart.calculateTotal();
-            const subtotal = await cart.calculateSubTotal();
-            const savings = await cart.calculateSavings();
-
+            // Para usuarios normales, renderizar la vista del carrito
             res.render('cart', {
                 title: 'Mi Carrito',
-                cart,
-                total,
-                subtotal,
-                savings
+                isAdmin: false
             });
         } catch (error) {
             console.error('Error en renderCart:', error);

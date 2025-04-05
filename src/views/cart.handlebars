@@ -3,6 +3,15 @@
         <div class="card shadow-sm mb-4">
             <div class="card-body">
                 <h5 class="card-title">Mi Carrito</h5>
+                {{#if isAdmin}}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    Como administrador, no puedes tener un carrito de compras.
+                </div>
+                <div class="text-center">
+                    <a href="/admin" class="btn btn-primary">Ir al Panel de Administración</a>
+                </div>
+                {{else}}
                 <div id="cart-items">
                     <div class="text-center py-5">
                         <div class="spinner-border text-primary" role="status">
@@ -11,9 +20,11 @@
                         <p class="mt-3">Cargando carrito...</p>
                     </div>
                 </div>
+                {{/if}}
             </div>
         </div>
     </div>
+    {{#unless isAdmin}}
     <div class="col-lg-4">
         <div class="card shadow-sm">
             <div class="card-body">
@@ -37,16 +48,32 @@
             </div>
         </div>
     </div>
+    {{/unless}}
 </div>
 
+{{#unless isAdmin}}
 <script>
     document.addEventListener('DOMContentLoaded', async () => {
-        const token = localStorage.getItem('token');
         const cartItemsContainer = document.getElementById('cart-items');
         const subtotalElement = document.getElementById('subtotal');
         const discountElement = document.getElementById('discount');
         const totalElement = document.getElementById('total');
         const checkoutBtn = document.getElementById('checkout-btn');
+        
+        // Función para obtener el token de las cookies
+        function getTokenFromCookie() {
+            const cookies = document.cookie.split(';');
+            for (let cookie of cookies) {
+                const [name, value] = cookie.trim().split('=');
+                if (name === 'token') {
+                    return value;
+                }
+            }
+            return null;
+        }
+
+        // Obtener token de las cookies o localStorage (fallback)
+        const token = getTokenFromCookie() || localStorage.getItem('token');
         
         // Verificar autenticación
         if (!token) {
@@ -61,6 +88,43 @@
             `;
             return;
         }
+
+        // Función para hacer peticiones autenticadas
+        async function fetchWithAuth(url, options = {}) {
+            const headers = {
+                ...options.headers,
+                'Authorization': `Bearer ${token}`
+            };
+            
+            const response = await fetch(url, { ...options, headers });
+            
+            if (response.status === 401) {
+                // Si el token expiró, redirigir al login
+                window.location.href = '/login';
+                return null;
+            }
+            
+            return response;
+        }
+
+        try {
+            // Verificar el rol del usuario
+            const userResponse = await fetchWithAuth('/api/sessions/current');
+            
+            if (!userResponse || !userResponse.ok) {
+                throw new Error('Error al verificar usuario');
+            }
+            
+            const userData = await userResponse.json();
+            const isAdmin = userData.payload.user.role === 'admin';
+            
+            if (isAdmin) {
+                window.location.href = '/admin';
+                return;
+            }
+        } catch (error) {
+            console.error('Error al verificar rol:', error);
+        }
         
         // Cargar carrito
         await loadCart();
@@ -68,13 +132,9 @@
         // Función para cargar el carrito
         async function loadCart() {
             try {
-                const response = await fetch('/api/carts/current', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                const response = await fetchWithAuth('/api/carts/current');
                 
-                if (!response.ok) {
+                if (!response || !response.ok) {
                     throw new Error('Error al cargar el carrito');
                 }
                 
@@ -107,8 +167,8 @@
                 cart.products.forEach(item => {
                     const product = item.product;
                     const quantity = item.quantity;
-                    const price = product.price;
-                    const finalPrice = product.onSale ? product.finalPrice : price;
+                    const price = product.price || 0;
+                    const finalPrice = product.onSale ? (product.finalPrice || price) : price;
                     
                     const itemSubtotal = price * quantity;
                     const itemTotal = finalPrice * quantity;
@@ -123,11 +183,11 @@
                         <div class="card-body">
                             <div class="row align-items-center">
                                 <div class="col-md-2 col-4">
-                                    <img src="${product.thumbnails[0] || '/img/placeholder.png'}" class="img-fluid rounded" alt="${product.title}">
+                                    <img src="${product.thumbnails?.[0] || '/img/placeholder.png'}" class="img-fluid rounded" alt="${product.title}">
                                 </div>
                                 <div class="col-md-4 col-8">
-                                    <h6 class="mb-0">${product.title}</h6>
-                                    <p class="text-muted small mb-0">Código: ${product.code}</p>
+                                    <h6 class="mb-0">${product.title || 'Producto sin nombre'}</h6>
+                                    <p class="text-muted small mb-0">Código: ${product.code || 'N/A'}</p>
                                 </div>
                                 <div class="col-md-2 col-4 mt-3 mt-md-0">
                                     <div class="input-group input-group-sm">
@@ -138,13 +198,13 @@
                                 </div>
                                 <div class="col-md-2 col-4 mt-3 mt-md-0 text-center">
                                     ${product.onSale ? 
-                                        `<p class="mb-0 text-decoration-line-through text-muted">$${price.toFixed(2)}</p>
-                                        <p class="mb-0 text-danger">$${finalPrice.toFixed(2)}</p>` : 
-                                        `<p class="mb-0">$${price.toFixed(2)}</p>`
+                                        `<p class="mb-0 text-decoration-line-through text-muted">$${(price || 0).toFixed(2)}</p>
+                                        <p class="mb-0 text-danger">$${(finalPrice || 0).toFixed(2)}</p>` : 
+                                        `<p class="mb-0">$${(price || 0).toFixed(2)}</p>`
                                     }
                                 </div>
                                 <div class="col-md-2 col-4 mt-3 mt-md-0 text-end">
-                                    <p class="mb-0 fw-bold">$${itemTotal.toFixed(2)}</p>
+                                    <p class="mb-0 fw-bold">$${(itemTotal || 0).toFixed(2)}</p>
                                     <button class="btn btn-sm btn-link text-danger remove-item" data-product-id="${product._id}">
                                         <i class="bi bi-trash"></i> Eliminar
                                     </button>
@@ -192,23 +252,20 @@
         // Función para actualizar la cantidad de un producto
         async function updateQuantity(productId, change) {
             try {
-                const response = await fetch(`/api/carts/current/products/${productId}`, {
+                const response = await fetchWithAuth(`/api/carts/current/products/${productId}`, {
                     method: 'PUT',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ change })
                 });
                 
-                if (!response.ok) {
+                if (!response || !response.ok) {
                     const error = await response.json();
                     throw new Error(error.message || 'Error al actualizar cantidad');
                 }
                 
-                // Recargar carrito
                 await loadCart();
-                
             } catch (error) {
                 console.error('Error:', error);
                 alert(error.message || 'Error al actualizar cantidad');
@@ -218,20 +275,15 @@
         // Función para eliminar un producto del carrito
         async function removeItem(productId) {
             try {
-                const response = await fetch(`/api/carts/current/products/${productId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
+                const response = await fetchWithAuth(`/api/carts/current/products/${productId}`, {
+                    method: 'DELETE'
                 });
                 
-                if (!response.ok) {
+                if (!response || !response.ok) {
                     throw new Error('Error al eliminar producto');
                 }
                 
-                // Recargar carrito
                 await loadCart();
-                
             } catch (error) {
                 console.error('Error:', error);
                 alert('Error al eliminar producto');
@@ -247,19 +299,15 @@
                     Procesando...
                 `;
                 
-                const response = await fetch('/api/carts/current/checkout', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
+                const response = await fetchWithAuth('/api/carts/current/checkout', {
+                    method: 'POST'
                 });
                 
-                if (!response.ok) {
+                if (!response || !response.ok) {
                     const error = await response.json();
                     throw new Error(error.message || 'Error al procesar la compra');
                 }
                 
-                // Mostrar mensaje de éxito y redirigir después de 2 segundos
                 cartItemsContainer.innerHTML = `
                     <div class="alert alert-success">
                         <i class="bi bi-check-circle-fill me-2"></i>
@@ -272,20 +320,16 @@
                     </div>
                 `;
                 
-                // Actualizar totales
                 subtotalElement.textContent = '$0.00';
                 discountElement.textContent = '-$0.00';
                 totalElement.textContent = '$0.00';
                 checkoutBtn.disabled = true;
                 
-                // Actualizar contador del carrito
                 document.getElementById('cart-count').textContent = '0';
                 
-                // Redirigir al perfil después de 2 segundos
                 setTimeout(() => {
-                    window.location.href = `/profile?token=${token}`;
+                    window.location.href = '/profile';
                 }, 2000);
-                
             } catch (error) {
                 console.error('Error:', error);
                 checkoutBtn.disabled = false;
@@ -294,4 +338,5 @@
             }
         }
     });
-</script> 
+</script>
+{{/unless}} 
