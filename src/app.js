@@ -13,7 +13,6 @@ import { initializePassport } from './config/passport.config.js';
 import cookieParser from 'cookie-parser';
 import MongoStore from 'connect-mongo';
 import dotenv from 'dotenv';
-import { verifyToken } from './utils/jwt.utils.js';
 
 // Rutas
 import viewRoutes from './routes/view.routes.js';
@@ -34,7 +33,7 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer);
 
-// Configuración de middleware
+// Middleware esenciales
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -48,10 +47,10 @@ app.use(session({
     saveUninitialized: true,
     store: MongoStore.create({
         mongoUrl: process.env.MONGODB_URI || 'mongodb://localhost:27017/multishop',
-        ttl: 60 * 60 * 24 // 1 día
+        ttl: 60 * 60 * 24
     }),
     cookie: {
-        maxAge: 1000 * 60 * 60 * 24 // 1 día
+        maxAge: 1000 * 60 * 60 * 24
     }
 }));
 
